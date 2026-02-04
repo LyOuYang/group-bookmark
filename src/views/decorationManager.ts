@@ -27,6 +27,9 @@ export class DecorationManager {
         // 监听编辑器变化
         vscode.window.onDidChangeActiveTextEditor(() => this.refreshActiveEditor());
         vscode.workspace.onDidChangeTextDocument(() => this.refreshActiveEditor());
+
+        // Fix: Trigger initial render for currently active editors
+        this.refreshAll();
     }
 
     /**
@@ -139,8 +142,17 @@ export class DecorationManager {
             // Usually stable enough.
             const iconKey = groupInfos.map(g => `${g.color}_${g.number}`).join('|');
 
-            const range = new vscode.Range(line - 1, 0, line - 1, 0);
+            // Fix: Attach decoration to the END of the line so 'after' renders at the end.
+            const lineRange = editor.document.lineAt(line - 1).range;
+            const range = new vscode.Range(lineRange.end, lineRange.end);
+
             const hoverMessage = this.getHoverMessage(line, relativePath);
+
+            // Expert UX: Truncate text if too long to prevent clutter
+            const MAX_LENGTH = 50;
+            if (ghostText.length > MAX_LENGTH) {
+                ghostText = ghostText.substring(0, MAX_LENGTH) + '...';
+            }
 
             const decorationOption: vscode.DecorationOptions = {
                 range,
