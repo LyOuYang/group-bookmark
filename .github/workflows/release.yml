@@ -104,6 +104,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           name: Release ${{ needs.build.outputs.version }}
-          files: *.vsix
+          files: "*.vsix"
           draft: false
           prerelease: false
