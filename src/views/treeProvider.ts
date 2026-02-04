@@ -33,7 +33,9 @@ export class BookmarkTreeItem extends vscode.TreeItem {
 /**
  * TreeDataProvider 实现
  */
-export class BookmarkTreeProvider implements vscode.TreeDataProvider<BookmarkTreeItem> {
+export class BookmarkTreeProvider implements vscode.TreeDataProvider<BookmarkTreeItem>, vscode.TreeDragAndDropController<BookmarkTreeItem> {
+    dropMimeTypes = ['application/vnd.code.tree.groupBookmarks'];
+    dragMimeTypes = ['text/uri-list', 'application/vnd.code.tree.groupBookmarks'];
     private _onDidChangeTreeData = new vscode.EventEmitter<BookmarkTreeItem | undefined | null | void>();
     readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
@@ -160,5 +162,80 @@ export class BookmarkTreeProvider implements vscode.TreeDataProvider<BookmarkTre
         };
 
         return colorMap[color] || '⚪';
+    }
+
+    // ===== Drag and Drop Implementation =====
+
+    handleDrag(source: readonly BookmarkTreeItem[], dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): void | Thenable<void> {
+        if (source.length === 0) return;
+
+        const item = source[0];
+        // 仅支持拖拽书签
+        if (item.type !== 'bookmark') return;
+
+        dataTransfer.set('application/vnd.code.tree.groupBookmarks', new vscode.DataTransferItem(item));
+    }
+
+    async handleDrop(target: BookmarkTreeItem | undefined, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<void> {
+        const transferItem = dataTransfer.get('application/vnd.code.tree.groupBookmarks');
+        if (!transferItem) return;
+
+        const sourceItem = transferItem.value as BookmarkTreeItem;
+        if (!sourceItem || sourceItem.type !== 'bookmark') return;
+
+        // 解析 Source Info
+        // relation.id = bookmarkId_groupId
+        const [sourceBookmarkId, sourceGroupId] = sourceItem.dataId.split('_');
+
+        // 1. Drop 到分组上 (移动到由该分组)
+        if (target && target.type === 'group') {
+            const targetGroupId = target.dataId;
+            if (sourceGroupId !== targetGroupId) {
+                // 移动分组
+                await this.relationManager.moveBookmarkToGroup(sourceBookmarkId, sourceGroupId, targetGroupId);
+            }
+            return;
+        }
+
+        // 2. Drop 到书签上 (排序 或 移动并排序)
+        if (target && target.type === 'bookmark') {
+            const [targetBookmarkId, targetGroupId] = target.dataId.split('_');
+
+            // 如果是同一个分组 -> 排序
+            if (sourceGroupId === targetGroupId) {
+                const relations = this.relationManager.getRelationsInGroup(sourceGroupId);
+                const sourceRelationId = sourceItem.dataId;
+                const targetRelationId = target.dataId;
+
+                // 简单的重新排序：将 source 移动到 target 之前
+                const ids = relations.map(r => r.id);
+                const fromIndex = ids.indexOf(sourceRelationId);
+                const toIndex = ids.indexOf(targetRelationId);
+
+                if (fromIndex !== -1 && toIndex !== -1 && fromIndex !== toIndex) {
+                    ids.splice(fromIndex, 1);
+                    // 如果从后面拖到前面，直接插入到 toIndex
+                    // 如果从前面拖到后面，因为删除了一个元素，toIndex 实际上变成了 target 的后面？
+                    // 修正逻辑：splice 删除后，插入位置
+                    // 目标是插在 target 之前
+                    // 如果 from < to: target 的索引减小了 1，插入到 (original_to - 1) + 0?
+                    // 标准逻辑：
+                    // ids.splice(fromIndex, 1);
+                    // const newToIndex = ids.indexOf(targetRelationId);
+                    // ids.splice(newToIndex, 0, sourceRelationId);
+
+                    // Re-find index because removing might shift it
+                    const newToIndex = ids.indexOf(targetRelationId);
+                    ids.splice(newToIndex, 0, sourceRelationId);
+
+                    await this.relationManager.reorderRelations(sourceGroupId, ids);
+                }
+            } else {
+                // 跨组拖拽到具体书签 -> 移动到该组并尝试插入到该书签之前
+                // 目前简化处理：先 move 到 group
+                await this.relationManager.moveBookmarkToGroup(sourceBookmarkId, sourceGroupId, targetGroupId);
+                // 暂不支持跨组精确定位排序，或者需要 move 后再 sort
+            }
+        }
     }
 }

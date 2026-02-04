@@ -63,7 +63,8 @@
       {
         "command": "groupBookmarks.toggleGroupGhostText",
         "title": "Toggle Group Labels",
-        "category": "Group Bookmarks"
+        "category": "Group Bookmarks",
+        "icon": "$(eye)"
       },
       {
         "command": "groupBookmarks.addBookmarkMenu",
@@ -156,14 +157,12 @@
         {
           "command": "groupBookmarks.toggleGroupGhostText",
           "when": "view == groupBookmarksView && viewItem == group_ghostVisible",
-          "group": "inline",
-          "title": "Hide Labels"
+          "group": "inline"
         },
         {
           "command": "groupBookmarks.toggleGroupGhostText",
           "when": "view == groupBookmarksView && viewItem == group_ghostHidden",
-          "group": "inline",
-          "title": "Show Labels"
+          "group": "inline"
         },
         {
           "command": "groupBookmarks.unsetActiveGroup",
@@ -182,16 +181,6 @@
         {
           "command": "groupBookmarks.setActiveGroup",
           "when": "view == groupBookmarksView && viewItem =~ /^group/"
-        },
-        {
-          "command": "groupBookmarks.toggleGroupGhostText",
-          "when": "view == groupBookmarksView && viewItem == group_ghostVisible",
-          "title": "Hide Inline Labels"
-        },
-        {
-          "command": "groupBookmarks.toggleGroupGhostText",
-          "when": "view == groupBookmarksView && viewItem == group_ghostHidden",
-          "title": "Show Inline Labels"
         },
         {
           "command": "groupBookmarks.deleteGroup",

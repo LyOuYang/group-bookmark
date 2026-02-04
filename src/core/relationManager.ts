@@ -141,6 +141,13 @@ export class RelationManager {
     }
 
     /**
+     * 重新排序分组内的书签
+     */
+    async reorderRelations(groupId: string, orderedRelationIds: string[]): Promise<void> {
+        await this.dataManager.reorderRelationsInGroup(groupId, orderedRelationIds);
+    }
+
+    /**
      * 私有方法：查找关联关系
      */
     private findRelation(bookmarkId: string, groupId: string): BookmarkGroup | undefined {

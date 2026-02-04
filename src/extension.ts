@@ -36,7 +36,8 @@ export async function activate(context: vscode.ExtensionContext) {
         const treeProvider = new BookmarkTreeProvider(dataManager, groupManager, relationManager);
         const treeView = vscode.window.createTreeView('groupBookmarksView', {
             treeDataProvider: treeProvider,
-            showCollapseAll: true
+            showCollapseAll: true,
+            dragAndDropController: treeProvider
         });
 
         context.subscriptions.push(treeView);
