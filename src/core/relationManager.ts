@@ -108,11 +108,12 @@ export class RelationManager {
 
         const title = newTitle || fromRelation.title;
 
-        // 删除原关联
-        await this.removeBookmarkFromGroup(bookmarkId, fromGroupId);
-
-        // 添加新关联
+        // 关键修复：先添加到新组，再从旧组移除
+        // 这样可以避免"移除导致书签被物理删除"的问题
         await this.addBookmarkToGroup(bookmarkId, toGroupId, title);
+
+        // 然后从旧组移除
+        await this.removeBookmarkFromGroup(bookmarkId, fromGroupId);
     }
 
     /**

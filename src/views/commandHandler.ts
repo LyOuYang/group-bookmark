@@ -87,6 +87,19 @@ export class CommandHandler {
                 this.setActiveGroup(item)
             )
         );
+        // 上移书签
+        context.subscriptions.push(
+            vscode.commands.registerCommand('groupBookmarks.moveUp', (item: any) =>
+                this.moveBookmark(item, 'up')
+            )
+        );
+
+        // 下移书签
+        context.subscriptions.push(
+            vscode.commands.registerCommand('groupBookmarks.moveDown', (item: any) =>
+                this.moveBookmark(item, 'down')
+            )
+        );
     }
 
     /**
@@ -559,6 +572,46 @@ export class CommandHandler {
             // 触发数据更新，视图自动刷新
         } catch (error) {
             Logger.error('Failed to toggle group ghost text', error);
+        }
+    }
+
+    /**
+     * 移动书签（上移/下移）
+     */
+    private async moveBookmark(item: any, direction: 'up' | 'down'): Promise<void> {
+        if (!item?.dataId) return;
+
+        // 解析 ID: bookmarkId_groupId
+        const parts = item.dataId.split('_');
+        const groupId = parts[1];
+
+        if (!groupId) return;
+
+        try {
+            const relations = this.relationManager.getRelationsInGroup(groupId);
+            const index = relations.findIndex(r => r.id === item.dataId);
+
+            if (index === -1) return;
+
+            const newRelations = [...relations];
+
+            if (direction === 'up') {
+                if (index > 0) {
+                    [newRelations[index - 1], newRelations[index]] = [newRelations[index], newRelations[index - 1]];
+                }
+            } else {
+                if (index < newRelations.length - 1) {
+                    [newRelations[index], newRelations[index + 1]] = [newRelations[index + 1], newRelations[index]];
+                }
+            }
+
+            // 获取新的 ID 顺序
+            const orderedIds = newRelations.map(r => r.id);
+            await this.relationManager.reorderRelations(groupId, orderedIds);
+
+            // 保持焦点? TreeView 可能会刷新导致失去焦点，但 VS Code 通常会尝试保持
+        } catch (error) {
+            Logger.error('Failed to move bookmark', error);
         }
     }
 }

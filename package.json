@@ -37,8 +37,21 @@
       },
       {
         "command": "groupBookmarks.createGroup",
-        "title": "Create Group",
-        "category": "Group Bookmarks"
+        "title": "New Group",
+        "category": "Group Bookmarks",
+        "icon": "$(add)"
+      },
+      {
+        "command": "groupBookmarks.moveUp",
+        "title": "Move Up",
+        "category": "Group Bookmarks",
+        "icon": "$(arrow-up)"
+      },
+      {
+        "command": "groupBookmarks.moveDown",
+        "title": "Move Down",
+        "category": "Group Bookmarks",
+        "icon": "$(arrow-down)"
       },
       {
         "command": "groupBookmarks.exportBookmarks",
@@ -111,6 +124,16 @@
         "command": "groupBookmarks.focusBookmarkView",
         "key": "ctrl+k v",
         "mac": "cmd+k v"
+      },
+      {
+        "command": "groupBookmarks.moveUp",
+        "key": "alt+up",
+        "when": "view == groupBookmarksView && viewItem == bookmark && listFocus"
+      },
+      {
+        "command": "groupBookmarks.moveDown",
+        "key": "alt+down",
+        "when": "view == groupBookmarksView && viewItem == bookmark && listFocus"
       }
     ],
     "viewsContainers": {
@@ -146,11 +169,13 @@
         },
         {
           "command": "groupBookmarks.exportBookmarks",
-          "when": "view == groupBookmarksView"
+          "when": "view == groupBookmarksView",
+          "group": "navigation"
         },
         {
           "command": "groupBookmarks.importBookmarks",
-          "when": "view == groupBookmarksView"
+          "when": "view == groupBookmarksView",
+          "group": "navigation"
         }
       ],
       "view/item/context": [

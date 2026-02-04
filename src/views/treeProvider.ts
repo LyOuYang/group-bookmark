@@ -88,7 +88,17 @@ export class BookmarkTreeProvider implements vscode.TreeDataProvider<BookmarkTre
             const count = this.groupManager.getBookmarkCountInGroup(group.id);
             const isActive = group.id === activeGroupId;
             const prefix = isActive ? '📌 ' : this.getColorIcon(group.color) + ' ';
-            const label = `${prefix}${group.name} [${count}]`;
+            // 格式：序号. 分组名 [数量] (Label 中移除数量，放到 description)
+            // Req #1: ID 替代数量
+            let label = `${group.number}. ${group.name}`;
+
+            // Req #5: 可见性状态图标
+            if (group.showGhostText !== false) {
+                label = `👁️ ${label}`;
+            }
+
+            // Description 显示数量
+            const description = isActive ? 'Active' : `(${count})`;
 
             const item = new BookmarkTreeItem(
                 'group',
@@ -97,8 +107,8 @@ export class BookmarkTreeProvider implements vscode.TreeDataProvider<BookmarkTre
                 vscode.TreeItemCollapsibleState.Collapsed
             );
 
-            item.tooltip = `${group.name} (${count} bookmarks)${isActive ? ' - Active Group' : ''}`;
-            item.description = isActive ? 'Active' : '';
+            item.description = description;
+            item.tooltip = `${group.name} (ID: ${group.id}) - ${count} bookmarks${isActive ? ' [Active]' : ''}`;
 
             // 设置 Context Value 以控制菜单显示
             // 格式：group_ghostVisible (默认) 或 group_ghostHidden
@@ -191,8 +201,19 @@ export class BookmarkTreeProvider implements vscode.TreeDataProvider<BookmarkTre
         if (target && target.type === 'group') {
             const targetGroupId = target.dataId;
             if (sourceGroupId !== targetGroupId) {
-                // 移动分组
+                // 跨组移动
                 await this.relationManager.moveBookmarkToGroup(sourceBookmarkId, sourceGroupId, targetGroupId);
+            } else {
+                // 同组移动：拖到分组标题 = 移到该组末尾
+                const relations = this.relationManager.getRelationsInGroup(sourceGroupId);
+                const ids = relations.map(r => r.id);
+                const sourceRelationId = sourceItem.dataId;
+                const index = ids.indexOf(sourceRelationId);
+                if (index > -1) {
+                    ids.splice(index, 1);
+                    ids.push(sourceRelationId); // 追加到末尾
+                    await this.relationManager.reorderRelations(sourceGroupId, ids);
+                }
             }
             return;
         }
@@ -207,34 +228,22 @@ export class BookmarkTreeProvider implements vscode.TreeDataProvider<BookmarkTre
                 const sourceRelationId = sourceItem.dataId;
                 const targetRelationId = target.dataId;
 
-                // 简单的重新排序：将 source 移动到 target 之前
                 const ids = relations.map(r => r.id);
-                const fromIndex = ids.indexOf(sourceRelationId);
-                const toIndex = ids.indexOf(targetRelationId);
+                const oldIndex = ids.indexOf(sourceRelationId);
+                if (oldIndex > -1) ids.splice(oldIndex, 1);
 
-                if (fromIndex !== -1 && toIndex !== -1 && fromIndex !== toIndex) {
-                    ids.splice(fromIndex, 1);
-                    // 如果从后面拖到前面，直接插入到 toIndex
-                    // 如果从前面拖到后面，因为删除了一个元素，toIndex 实际上变成了 target 的后面？
-                    // 修正逻辑：splice 删除后，插入位置
-                    // 目标是插在 target 之前
-                    // 如果 from < to: target 的索引减小了 1，插入到 (original_to - 1) + 0?
-                    // 标准逻辑：
-                    // ids.splice(fromIndex, 1);
-                    // const newToIndex = ids.indexOf(targetRelationId);
-                    // ids.splice(newToIndex, 0, sourceRelationId);
-
-                    // Re-find index because removing might shift it
-                    const newToIndex = ids.indexOf(targetRelationId);
-                    ids.splice(newToIndex, 0, sourceRelationId);
-
-                    await this.relationManager.reorderRelations(sourceGroupId, ids);
+                // 插入到 target 之前
+                const newIndex = ids.indexOf(targetRelationId);
+                if (newIndex > -1) {
+                    ids.splice(newIndex, 0, sourceRelationId);
+                } else {
+                    ids.push(sourceRelationId);
                 }
+
+                await this.relationManager.reorderRelations(sourceGroupId, ids);
             } else {
-                // 跨组拖拽到具体书签 -> 移动到该组并尝试插入到该书签之前
-                // 目前简化处理：先 move 到 group
+                // 跨组拖拽到具体书签 -> 移动到该组
                 await this.relationManager.moveBookmarkToGroup(sourceBookmarkId, sourceGroupId, targetGroupId);
-                // 暂不支持跨组精确定位排序，或者需要 move 后再 sort
             }
         }
     }
