@@ -110,15 +110,17 @@ export class BookmarkTreeProvider implements vscode.TreeDataProvider<BookmarkTre
                 vscode.TreeItemCollapsibleState.Collapsed
             );
 
-            // Req: Active 亮起来 -> 使用 Pin 图标 + 高亮色
+            // V1.4: Icon Coexistence Strategy
+            // 1. Label always has Color Emoji (Identity)
+            const colorIcon = this.getColorIcon(group.color);
+            item.label = `${colorIcon} ${label}`;
+
+            // 2. IconPath used for State (Pinned/Active)
             if (isActive) {
-                // Active: 使用 Pinned 图标 (Filled/Slanted per user request)
+                // Active: Show Pinned Icon (highlighted)
                 item.iconPath = new vscode.ThemeIcon('pinned', new vscode.ThemeColor('list.highlightForeground'));
-            } else {
-                // Inactive: 使用 Color Emoji 在 Label 前缀 (保持旧风格，但组合新 Label)
-                const colorIcon = this.getColorIcon(group.color);
-                item.label = `${colorIcon} ${label}`;
             }
+            // Inactive: IconPath undefined (no icon), only Color in Label
 
             return item;
         });
