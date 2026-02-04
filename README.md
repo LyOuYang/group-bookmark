@@ -1,6 +1,6 @@
-[🇺🇸 English](#-group-bookmarks-v15) | [🇨🇳 中文说明](#-group-bookmarks-v15-cn)
+[🇺🇸 English](#-group-bookmarks) | [🇨🇳 中文说明](#-group-bookmarks-cn)
 
-# 🔖 Group Bookmarks (V1.5)
+# 🔖 Group Bookmarks
 
 **The ultimate bookmark manager for complex code flow analysis.**
 
@@ -60,9 +60,9 @@ When reading massive source code, logic often scatters across dozens of files. "
 
 <br/><br/><br/>
 
-[🇺🇸 English](#-group-bookmarks-v15) | [🇨🇳 中文说明](#-group-bookmarks-v15-cn)
+[🇺🇸 English](#-group-bookmarks) | [🇨🇳 中文说明](#-group-bookmarks-cn)
 
-# 🔖 Group Bookmarks (V1.5) CN
+# 🔖 Group Bookmarks CN
 
 **为复杂代码流程阅读而生的分组书签工具。**
 
