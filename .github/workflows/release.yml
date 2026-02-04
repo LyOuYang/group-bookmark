@@ -1,0 +1,78 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*' # 当推送 v 开头的 tag 时触发（例如 v1.0.0）
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 编译项目
+        run: npm run compile
+
+      - name: 打包 VSIX
+        run: npm run package
+
+      - name: 获取版本号
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: 查找 VSIX 文件
+        id: find_vsix
+        run: |
+          VSIX_FILE=$(ls *.vsix | head -n 1)
+          echo "VSIX_FILE=$VSIX_FILE" >> $GITHUB_OUTPUT
+          echo "找到 VSIX 文件: $VSIX_FILE"
+
+      - name: 创建 Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ steps.get_version.outputs.VERSION }}
+          body: |
+            ## 🎉 Group Bookmarks v${{ steps.get_version.outputs.VERSION }}
+            
+            ### 安装方式
+            1. 下载下方的 `.vsix` 文件
+            2. 打开 VS Code
+            3. 按 `Ctrl+Shift+P` 或 `Cmd+Shift+P` 打开命令面板
+            4. 输入 "Extensions: Install from VSIX..."
+            5. 选择下载的 `.vsix` 文件
+            
+            ### 特性
+            - 📂 多维分组管理
+            - 👁️ 可视化增强（Ghost Text）
+            - 🖱️ 极速交互（代码预览、拖拽）
+            - 🔄 导入/导出功能
+            
+            详细功能请查看 [README](https://github.com/${{ github.repository }})
+          draft: false
+          prerelease: false
+
+      - name: 上传 VSIX 到 Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./${{ steps.find_vsix.outputs.VSIX_FILE }}
+          asset_name: ${{ steps.find_vsix.outputs.VSIX_FILE }}
+          asset_content_type: application/vsix
