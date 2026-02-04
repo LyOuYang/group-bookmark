@@ -1,7 +1,7 @@
 {
   "name": "group-bookmarks",
   "displayName": "Group Bookmarks",
-  "description": "为代码流程理解而生的分组书签工具Source Code Bookmark Group Management | 源码书签分组管理",
+  "description": "Source Code Bookmark Group Management | 源码书签分组管理",
   "version": "1.0.3",
   "publisher": "groupbookmarks",
   "repository": {
