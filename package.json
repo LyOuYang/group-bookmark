@@ -8,7 +8,7 @@
     "type": "git",
     "url": "https://github.com/LyOuYang/group-bookmark"
   },
-  "icon": "resources/icon.png",
+  "icon": "resources/icons/icon.png",
   "engines": {
     "vscode": "^1.85.0"
   },
