@@ -36,6 +36,11 @@
         "category": "Group Bookmarks"
       },
       {
+        "command": "groupBookmarks.toggleGroupGhostText",
+        "title": "Toggle Ghost Text",
+        "icon": "$(eye)"
+      },
+      {
         "command": "groupBookmarks.createGroup",
         "title": "New Group",
         "category": "Group Bookmarks",
@@ -54,14 +59,16 @@
         "icon": "$(arrow-down)"
       },
       {
-        "command": "groupBookmarks.exportBookmarks",
-        "title": "Export Bookmarks",
-        "category": "Group Bookmarks"
-      },
-      {
         "command": "groupBookmarks.importBookmarks",
         "title": "Import Bookmarks",
-        "category": "Group Bookmarks"
+        "category": "Group Bookmarks",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "groupBookmarks.exportBookmarks",
+        "title": "Export Bookmarks",
+        "category": "Group Bookmarks",
+        "icon": "$(cloud-download)"
       },
       {
         "command": "groupBookmarks.focusBookmarkView",
@@ -163,7 +170,7 @@
       ],
       "view/title": [
         {
-          "command": "groupBookmarks.createGroup",
+          "command": "groupBookmarks.importBookmarks",
           "when": "view == groupBookmarksView",
           "group": "navigation"
         },
@@ -173,7 +180,7 @@
           "group": "navigation"
         },
         {
-          "command": "groupBookmarks.importBookmarks",
+          "command": "groupBookmarks.createGroup",
           "when": "view == groupBookmarksView",
           "group": "navigation"
         }
@@ -181,23 +188,13 @@
       "view/item/context": [
         {
           "command": "groupBookmarks.toggleGroupGhostText",
-          "when": "view == groupBookmarksView && viewItem == group_ghostVisible",
-          "group": "inline"
-        },
-        {
-          "command": "groupBookmarks.toggleGroupGhostText",
-          "when": "view == groupBookmarksView && viewItem == group_ghostHidden",
-          "group": "inline"
-        },
-        {
-          "command": "groupBookmarks.unsetActiveGroup",
-          "when": "view == groupBookmarksView && viewItem =~ /active/",
-          "group": "inline"
+          "when": "view == groupBookmarksView && viewItem =~ /^group/",
+          "group": "inline@1"
         },
         {
           "command": "groupBookmarks.setActiveGroup",
           "when": "view == groupBookmarksView && viewItem =~ /^group/",
-          "group": "inline"
+          "group": "inline@2"
         },
         {
           "command": "groupBookmarks.renameGroup",

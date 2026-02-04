@@ -87,18 +87,21 @@ export class BookmarkTreeProvider implements vscode.TreeDataProvider<BookmarkTre
         return groups.map(group => {
             const count = this.groupManager.getBookmarkCountInGroup(group.id);
             const isActive = group.id === activeGroupId;
-            const prefix = isActive ? '📌 ' : this.getColorIcon(group.color) + ' ';
-            // 格式：序号. 分组名 [数量] (Label 中移除数量，放到 description)
-            // Req #1: ID 替代数量
+
+            // Req: Label 格式改为 "1. GroupName" (无数量)
             let label = `${group.number}. ${group.name}`;
 
-            // Req #5: 可见性状态图标
+            // Req: 可见性状态使用 Tick 符号，避免 Emoji 眼睛的"吓人"感
+            // 用户接受 "点击的那个眼睛" (Inline)，但 Label 需要静态指示
+            // 采用 ✔，若 Ghost Text 开启
             if (group.showGhostText !== false) {
-                label = `👁️ ${label}`;
+                label = `✔ ${label}`;
             }
 
-            // Description 显示数量
-            const description = isActive ? 'Active' : `(${count})`;
+            // Description 移除数量，保持干净? 用户说 "group后面的()统计tag数的不需要"
+            // 之前放在 Label 后，后来放到 Description。现在 Description 也移除？
+            // 保持 Description 干净，仅在 Active 时显示状态，或者完全留空
+            const description = isActive ? 'Active' : '';
 
             const item = new BookmarkTreeItem(
                 'group',
@@ -107,13 +110,15 @@ export class BookmarkTreeProvider implements vscode.TreeDataProvider<BookmarkTre
                 vscode.TreeItemCollapsibleState.Collapsed
             );
 
-            item.description = description;
-            item.tooltip = `${group.name} (ID: ${group.id}) - ${count} bookmarks${isActive ? ' [Active]' : ''}`;
-
-            // 设置 Context Value 以控制菜单显示
-            // 格式：group_ghostVisible (默认) 或 group_ghostHidden
-            const ghostStatus = group.showGhostText !== false ? 'ghostVisible' : 'ghostHidden';
-            item.contextValue = `group_${ghostStatus}`;
+            // Req: Active 亮起来 -> 使用 Pin 图标 + 高亮色
+            if (isActive) {
+                // Active: 使用 Pinned 图标 (Filled/Slanted per user request)
+                item.iconPath = new vscode.ThemeIcon('pinned', new vscode.ThemeColor('list.highlightForeground'));
+            } else {
+                // Inactive: 使用 Color Emoji 在 Label 前缀 (保持旧风格，但组合新 Label)
+                const colorIcon = this.getColorIcon(group.color);
+                item.label = `${colorIcon} ${label}`;
+            }
 
             return item;
         });
