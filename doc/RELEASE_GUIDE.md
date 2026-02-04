@@ -27,6 +27,12 @@ git commit -m "chore: bump version to 1.0.0"
 git push
 ```
 
+### 1.1 版本升级
+```bash
+npm version patch  # 1.0.1 -> 1.0.2
+git push --follow-tags
+```
+
 ### 2. 打标签 (Tagging)
 创建以 `v` 开头的标签（这是触发自动发布的关键）：
 ```bash

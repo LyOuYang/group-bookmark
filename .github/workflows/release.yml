@@ -3,15 +3,17 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - 'v*' # 当推送 v 开头的 tag 时触发
 
 permissions:
   contents: write
 
 jobs:
-  release:
+  # 1. 构建任务：负责编译和打包
+  build:
     runs-on: ubuntu-latest
-    
+    outputs:
+      version: ${{ steps.get_version.outputs.VERSION }}
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
@@ -35,21 +37,73 @@ jobs:
       - name: 打包 VSIX
         run: npm run package
 
+      - name: 查找 VSIX 文件
+        id: find_vsix
+        run: |
+          VSIX_FILE=$(ls *.vsix | head -n 1)
+          echo "VSIX_FILE=$VSIX_FILE" >> $GITHUB_OUTPUT
+          echo "找到 VSIX 文件: $VSIX_FILE"
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: vsix-package
+          path: ${{ steps.find_vsix.outputs.VSIX_FILE }}
+
+  # 2. 发布到 VS Code Marketplace
+  publish-vscode:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: 设置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      
+      - name: 下载构建产物
+        uses: actions/download-artifact@v4
+        with:
+          name: vsix-package
+
       - name: 发布到 VS Code 市场
-        run: npx @vscode/vsce publish --packagePath group-bookmarks-${{ steps.get_version.outputs.VERSION }}.vsix
+        run: npx @vscode/vsce publish --packagePath *.vsix
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
 
+  # 3. 发布到 Open VSX Registry
+  publish-openvsx:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: 设置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      
+      - name: 下载构建产物
+        uses: actions/download-artifact@v4
+        with:
+          name: vsix-package
+
       - name: 发布到 Open VSX 市场
-        run: npx ovsx publish group-bookmarks-${{ steps.get_version.outputs.VERSION }}.vsix
+        run: npx ovsx publish *.vsix
         env:
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
 
-      - name: 创建 GitHub Release 并上传 VSIX
+  # 4. 创建 GitHub Release
+  release-github:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: 下载构建产物
+        uses: actions/download-artifact@v4
+        with:
+          name: vsix-package
+
+      - name: 创建 GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: Release ${{ steps.get_version.outputs.VERSION }}
-          # 这里的 body 你可以根据需要保持原样
-          files: group-bookmarks-${{ steps.get_version.outputs.VERSION }}.vsix
+          name: Release ${{ needs.build.outputs.version }}
+          files: *.vsix
           draft: false
           prerelease: false
