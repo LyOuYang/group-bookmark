@@ -2,7 +2,7 @@
   "name": "group-bookmarks",
   "displayName": "Group Bookmarks",
   "description": "为代码流程理解而生的分组书签工具",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "publisher": "groupbookmarks",
   "repository": {
     "type": "git",
