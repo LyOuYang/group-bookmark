@@ -35,10 +35,15 @@ jobs:
       - name: 打包 VSIX
         run: npm run package
 
-      - name: 发布到市场
+      - name: 发布到 VS Code 市场
         run: npx @vscode/vsce publish --packagePath group-bookmarks-${{ steps.get_version.outputs.VERSION }}.vsix
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
+
+      - name: 发布到 Open VSX 市场
+        run: npx ovsx publish group-bookmarks-${{ steps.get_version.outputs.VERSION }}.vsix
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
 
       - name: 创建 GitHub Release 并上传 VSIX
         uses: softprops/action-gh-release@v2
