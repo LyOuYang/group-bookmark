@@ -6,8 +6,9 @@
   "publisher": "groupbookmarks",
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-username/group-bookmarks"
+    "url": "https://github.com/LyOuYang/group-bookmark"
   },
+  "icon": "resources/icon.png",
   "engines": {
     "vscode": "^1.85.0"
   },

@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v*' # 当推送 v 开头的 tag 时触发（例如 v1.0.0）
+      - 'v*'
 
 permissions:
   contents: write
@@ -28,41 +28,23 @@ jobs:
       - name: 编译项目
         run: npm run compile
 
-      - name: 打包 VSIX
-        run: npm run package
-
       - name: 获取版本号
         id: get_version
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
-      - name: 查找 VSIX 文件
-        id: find_vsix
-        run: |
-          VSIX_FILE=$(ls *.vsix | head -n 1)
-          echo "VSIX_FILE=$VSIX_FILE" >> $GITHUB_OUTPUT
-          echo "找到 VSIX 文件: $VSIX_FILE"
+      - name: 打包 VSIX
+        run: npm run package
 
-      - name: 创建 Release 并上传 VSIX
+      - name: 发布到市场
+        run: npx @vscode/vsce publish --packagePath group-bookmarks-${{ steps.get_version.outputs.VERSION }}.vsix
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+
+      - name: 创建 GitHub Release 并上传 VSIX
         uses: softprops/action-gh-release@v2
         with:
           name: Release ${{ steps.get_version.outputs.VERSION }}
-          body: |
-            ## 🎉 Group Bookmarks v${{ steps.get_version.outputs.VERSION }}
-            
-            ### 安装方式
-            1. 下载下方的 `.vsix` 文件
-            2. 打开 VS Code
-            3. 按 `Ctrl+Shift+P` 或 `Cmd+Shift+P` 打开命令面板
-            4. 输入 "Extensions: Install from VSIX..."
-            5. 选择下载的 `.vsix` 文件
-            
-            ### 特性
-            - 📂 多维分组管理
-            - 👁️ 可视化增强（Ghost Text）
-            - 🖱️ 极速交互（代码预览、拖拽）
-            - 🔄 导入/导出功能
-            
-            详细功能请查看 [README](https://github.com/${{ github.repository }})
-          files: ${{ steps.find_vsix.outputs.VSIX_FILE }}
+          # 这里的 body 你可以根据需要保持原样
+          files: group-bookmarks-${{ steps.get_version.outputs.VERSION }}.vsix
           draft: false
           prerelease: false
