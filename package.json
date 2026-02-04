@@ -1,0 +1,161 @@
+{
+  "name": "group-bookmarks",
+  "displayName": "Group Bookmarks",
+  "description": "为代码流程理解而生的分组书签工具",
+  "version": "1.0.0",
+  "publisher": "groupbookmarks",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/group-bookmarks"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "Group Bookmarks",
+      "properties": {
+        "groupBookmarks.showCodeLens": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show bookmark titles as CodeLens above bookmark lines"
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "groupBookmarks.addBookmark",
+        "title": "Add Bookmark",
+        "category": "Group Bookmarks"
+      },
+      {
+        "command": "groupBookmarks.createGroup",
+        "title": "Create Group",
+        "category": "Group Bookmarks"
+      },
+      {
+        "command": "groupBookmarks.exportBookmarks",
+        "title": "Export Bookmarks",
+        "category": "Group Bookmarks"
+      },
+      {
+        "command": "groupBookmarks.importBookmarks",
+        "title": "Import Bookmarks",
+        "category": "Group Bookmarks"
+      },
+      {
+        "command": "groupBookmarks.focusBookmarkView",
+        "title": "Focus Bookmark View",
+        "category": "Group Bookmarks"
+      },
+      {
+        "command": "groupBookmarks.toggleGutterDecorations",
+        "title": "Toggle Gutter Decorations",
+        "category": "Group Bookmarks"
+      },
+      {
+        "command": "groupBookmarks.addBookmarkMenu",
+        "title": "📌 Add Group Bookmark"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "groupBookmarks.addBookmark",
+        "key": "ctrl+k b",
+        "mac": "cmd+k b"
+      },
+      {
+        "command": "groupBookmarks.focusBookmarkView",
+        "key": "ctrl+k v",
+        "mac": "cmd+k v"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "groupBookmarks",
+          "title": "Group Bookmarks",
+          "icon": "resources/icons/bookmark.svg"
+        }
+      ]
+    },
+    "views": {
+      "groupBookmarks": [
+        {
+          "id": "groupBookmarksView",
+          "name": "Bookmarks"
+        }
+      ]
+    },
+    "menus": {
+      "editor/context": [
+        {
+          "command": "groupBookmarks.addBookmarkMenu",
+          "group": "9_bookmarks@1",
+          "when": "editorTextFocus"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "groupBookmarks.createGroup",
+          "when": "view == groupBookmarksView",
+          "group": "navigation"
+        },
+        {
+          "command": "groupBookmarks.exportBookmarks",
+          "when": "view == groupBookmarksView"
+        },
+        {
+          "command": "groupBookmarks.importBookmarks",
+          "when": "view == groupBookmarksView"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "groupBookmarks.renameGroup",
+          "when": "view == groupBookmarksView && viewItem == group",
+          "group": "inline"
+        },
+        {
+          "command": "groupBookmarks.deleteGroup",
+          "when": "view == groupBookmarksView && viewItem == group",
+          "group": "inline"
+        },
+        {
+          "command": "groupBookmarks.deleteBookmark",
+          "when": "view == groupBookmarksView && viewItem == bookmark",
+          "group": "inline"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node",
+    "watch": "npm run compile -- --watch",
+    "pretest": "npm run compile",
+    "lint": "eslint src --ext ts",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^18.x",
+    "@types/uuid": "^10.0.0",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "@vscode/vsce": "^2.22.0",
+    "esbuild": "^0.19.0",
+    "eslint": "^8.50.0",
+    "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "uuid": "^9.0.0"
+  }
+}
