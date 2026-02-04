@@ -98,18 +98,10 @@ export class BookmarkTreeProvider implements vscode.TreeDataProvider<BookmarkTre
             item.tooltip = `${group.name} (${count} bookmarks)${isActive ? ' - Active Group' : ''}`;
             item.description = isActive ? 'Active' : '';
 
-            if (isActive) {
-                item.contextValue = 'group_active';
-            }
-
-            // 只有当它是 active 时，contextValue 可能不同？
-            // 还是保持 'group'，但是菜单里 'Set Active' 可以根据条件隐藏？
-            // 目前 package.json 里无法根据 item 属性动态隐藏菜单项（除非 contextValue 变了）
-            // 我们可以设 contextValue = isActive ? 'activeGroup' : 'group'
-            // 但这样 deleteGroup 也要匹配 activeGroup
-
-            // 为了简单，暂时都叫 'group'。或者我们在 package.json 用 contextValue == activeGroup 隐藏 'Set Active' 可能更好
-            // 但用户要求简单，先都叫 'group'，再次点击 set active 也没坏处（只是没反应）
+            // 设置 Context Value 以控制菜单显示
+            // 格式：group_ghostVisible (默认) 或 group_ghostHidden
+            const ghostStatus = group.showGhostText !== false ? 'ghostVisible' : 'ghostHidden';
+            item.contextValue = `group_${ghostStatus}`;
 
             return item;
         });

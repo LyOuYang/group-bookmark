@@ -67,6 +67,13 @@ export class CommandHandler {
             )
         );
 
+        // 切换分组 Ghost Text 显示
+        context.subscriptions.push(
+            vscode.commands.registerCommand('groupBookmarks.toggleGroupGhostText', (item: any) =>
+                this.toggleGroupGhostText(item)
+            )
+        );
+
         // 设置活动分组
         context.subscriptions.push(
             vscode.commands.registerCommand('groupBookmarks.setActiveGroup', (item: any) =>
@@ -537,6 +544,21 @@ export class CommandHandler {
             vscode.window.showErrorMessage(
                 `Failed to rename group: ${error instanceof Error ? error.message : 'Unknown error'}`
             );
+        }
+    }
+
+    /**
+     * 切换分组 Ghost Text 显示
+     */
+    private async toggleGroupGhostText(item: any): Promise<void> {
+        if (!item?.dataId) return;
+        const groupId = item.dataId;
+
+        try {
+            await this.groupManager.toggleGroupGhostText(groupId);
+            // 触发数据更新，视图自动刷新
+        } catch (error) {
+            Logger.error('Failed to toggle group ghost text', error);
         }
     }
 }

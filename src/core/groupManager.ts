@@ -28,6 +28,7 @@ export class GroupManager {
             color,
             order: maxOrder + 1,
             sortMode: 'custom',
+            showGhostText: true,
             createdAt: Date.now(),
             updatedAt: Date.now()
         };
@@ -79,6 +80,18 @@ export class GroupManager {
      */
     async reorderGroups(groupIds: string[]): Promise<void> {
         await this.dataManager.reorderGroups(groupIds);
+    }
+
+    /**
+     * 切换分组的 Ghost Text 显示状态
+     */
+    async toggleGroupGhostText(id: string): Promise<void> {
+        const group = this.dataManager.getGroup(id);
+        if (!group) return;
+
+        // 如果未定义，视为 true，取反为 false
+        const current = group.showGhostText !== false;
+        await this.dataManager.updateGroup(id, { showGhostText: !current });
     }
 
     /**

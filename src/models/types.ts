@@ -21,6 +21,7 @@ export interface Group {
     color: GroupColor;             // 分组颜色
     order: number;                 // 排序权重（0-based）
     sortMode: SortMode;            // 排序模式
+    showGhostText?: boolean;       // 是否显示行尾虚影 (default: true)
     createdAt: number;
     updatedAt: number;
 }

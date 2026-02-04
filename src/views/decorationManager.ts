@@ -84,45 +84,80 @@ export class DecorationManager {
             return;
         }
 
-        // 按行分组书签（一行可能有多个分组）
-        const bookmarksByLine = new Map<number, GroupInfo[]>();
+        // 按行分组书签
+        // Map<line, Bookmarks[]>
+        const bookmarksByLine = new Map<number, any[]>(); // using any to avoid type complexity locally
 
         for (const bookmark of bookmarks) {
-            const groups = this.relationManager.getGroupsForBookmark(bookmark.id);
-            if (groups.length === 0) {
-                continue;
-            }
-
-            // 收集该行的所有分组信息
             if (!bookmarksByLine.has(bookmark.line)) {
                 bookmarksByLine.set(bookmark.line, []);
             }
-
-            for (const group of groups) {
-                bookmarksByLine.get(bookmark.line)!.push({
-                    color: group.color,
-                    number: group.number
-                });
-            }
+            bookmarksByLine.get(bookmark.line)!.push(bookmark);
         }
 
-        // 按 GroupInfo 数组的签名分组装饰
-        const decorationsByIcon = new Map<string, Array<{
-            range: vscode.Range;
-            hoverMessage: vscode.MarkdownString;
-        }>>();
+        // 准备装饰数据
+        // Key: IconKey (Color_Number combination)
+        const decorationsByIcon = new Map<string, vscode.DecorationOptions[]>();
 
-        for (const [line, groupInfos] of bookmarksByLine) {
+        const ghostColor = new vscode.ThemeColor('editorCodeLens.foreground');
+
+        for (const [line, lineBookmarks] of bookmarksByLine) {
+            // 收集该行所有分组信息（用于图标）和 Ghost Text
+            const groupInfos: GroupInfo[] = [];
+            let ghostText = '';
+
+            for (const bookmark of lineBookmarks) {
+                const groups = this.relationManager.getGroupsForBookmark(bookmark.id);
+
+                for (const group of groups) {
+                    // 收集图标信息
+                    groupInfos.push({
+                        color: group.color,
+                        number: group.number
+                    });
+
+                    // 收集 Ghost Text 信息
+                    // 检查分组是否启用 Ghost Text (默认为 true)
+                    if (group.showGhostText !== false) {
+                        const relations = this.dataManager.getAllRelations()
+                            .filter(r => r.bookmarkId === bookmark.id && r.groupId === group.id);
+
+                        for (const relation of relations) {
+                            const colorEmoji = this.getColorEmoji(group.color);
+                            // 格式: 🔴 [GroupName] Title
+                            ghostText += `  ${colorEmoji} [${group.displayName}] ${relation.title}`;
+                        }
+                    }
+                }
+            }
+
+            if (groupInfos.length === 0) continue;
+
+            // 生成图标缓存 Key
+            // Sort keys specifically to avoid duplicates like Red_1|Blue_2 vs Blue_2|Red_1?
+            // Current caching logic relies on order. `groupInfos` order depends on `lineBookmarks` order (which is DB order?)
+            // Usually stable enough.
+            const iconKey = groupInfos.map(g => `${g.color}_${g.number}`).join('|');
+
             const range = new vscode.Range(line - 1, 0, line - 1, 0);
             const hoverMessage = this.getHoverMessage(line, relativePath);
 
-            // 生成图标缓存 Key
-            const iconKey = groupInfos.map(g => `${g.color}_${g.number}`).join('|');
+            const decorationOption: vscode.DecorationOptions = {
+                range,
+                hoverMessage,
+                renderOptions: {
+                    after: {
+                        contentText: ghostText,
+                        color: ghostColor,
+                        margin: '0 0 0 2em'
+                    }
+                }
+            };
 
             if (!decorationsByIcon.has(iconKey)) {
                 decorationsByIcon.set(iconKey, []);
             }
-            decorationsByIcon.get(iconKey)!.push({ range, hoverMessage });
+            decorationsByIcon.get(iconKey)!.push(decorationOption);
         }
 
         // 批量设置装饰
@@ -185,7 +220,6 @@ export class DecorationManager {
 
         const md = new vscode.MarkdownString();
         // 移除 supportHtml 和 isTrusted，改用纯 Markdown + Emoji 以保证最大兼容性
-        // 用户反馈之前不显示，可能是 HTML 渲染被拦截或者格式错误
 
         if (bookmarks.length === 0) return md;
 
