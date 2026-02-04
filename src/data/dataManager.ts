@@ -20,6 +20,15 @@ export class DataManager {
 
     constructor(private storageService: StorageService) { }
 
+    getActiveGroupId(): string | undefined {
+        return this.storageService.getActiveGroupId();
+    }
+
+    async setActiveGroupId(id: string | undefined): Promise<void> {
+        await this.storageService.setActiveGroupId(id);
+        this._onDidChangeGroups.fire(); // 触发 UI 刷新
+    }
+
     /**
      * 从存储加载所有数据
      */
@@ -69,6 +78,25 @@ export class DataManager {
         Object.assign(bookmark, updates, { updatedAt: Date.now() });
         await this.storageService.saveBookmarks(this.getAllBookmarks());
         this._onDidChangeBookmarks.fire();
+    }
+
+    /**
+     * 批量更新书签（性能优化）
+     */
+    async batchUpdateBookmarks(updater: (bookmark: Bookmark) => boolean): Promise<void> {
+        let changed = false;
+
+        for (const bookmark of this.bookmarks.values()) {
+            if (updater(bookmark)) {
+                bookmark.updatedAt = Date.now();
+                changed = true;
+            }
+        }
+
+        if (changed) {
+            await this.storageService.saveBookmarks(this.getAllBookmarks());
+            this._onDidChangeBookmarks.fire();
+        }
     }
 
     async deleteBookmark(id: string): Promise<void> {

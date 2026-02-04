@@ -75,10 +75,18 @@ export class BookmarkTreeProvider implements vscode.TreeDataProvider<BookmarkTre
      */
     private getGroupItems(): BookmarkTreeItem[] {
         const groups = this.groupManager.getAllGroups();
+        const activeGroupId = this.groupManager.getActiveGroupId();
+
+        // 如果没有 Active Group 且有分组，默认激活第一个
+        /* 用户反馈希望手动 pin，所以这里不自动 pin，除非用户第一次安装？
+           暂时保持手动 pin 的逻辑。或者在 CommandHandler 里处理 addBookmark 时自动 pin。
+        */
 
         return groups.map(group => {
             const count = this.groupManager.getBookmarkCountInGroup(group.id);
-            const label = `${this.getColorIcon(group.color)} ${group.name} [${count}]`;
+            const isActive = group.id === activeGroupId;
+            const prefix = isActive ? '📌 ' : this.getColorIcon(group.color) + ' ';
+            const label = `${prefix}${group.name} [${count}]`;
 
             const item = new BookmarkTreeItem(
                 'group',
@@ -87,8 +95,17 @@ export class BookmarkTreeProvider implements vscode.TreeDataProvider<BookmarkTre
                 vscode.TreeItemCollapsibleState.Collapsed
             );
 
-            item.tooltip = `${group.name} (${count} bookmarks)`;
-            item.description = '';
+            item.tooltip = `${group.name} (${count} bookmarks)${isActive ? ' - Active Group' : ''}`;
+            item.description = isActive ? 'Active' : '';
+
+            // 只有当它是 active 时，contextValue 可能不同？
+            // 还是保持 'group'，但是菜单里 'Set Active' 可以根据条件隐藏？
+            // 目前 package.json 里无法根据 item 属性动态隐藏菜单项（除非 contextValue 变了）
+            // 我们可以设 contextValue = isActive ? 'activeGroup' : 'group'
+            // 但这样 deleteGroup 也要匹配 activeGroup
+
+            // 为了简单，暂时都叫 'group'。或者我们在 package.json 用 contextValue == activeGroup 隐藏 'Set Active' 可能更好
+            // 但用户要求简单，先都叫 'group'，再次点击 set active 也没坏处（只是没反应）
 
             return item;
         });

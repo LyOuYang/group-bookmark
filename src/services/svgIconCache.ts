@@ -42,13 +42,15 @@ export class SVGIconCache {
     /**
      * 生成 SVG Data URI
      */
+    /**
+     * 生成 SVG Data URI
+     */
     private generateSVG(groups: GroupInfo[]): vscode.Uri {
         if (groups.length === 1) {
             return this.createSingleIcon(groups[0]);
-        } else if (groups.length === 2) {
-            return this.createDoubleIcons(groups);
         } else {
-            return this.createMultipleIcons(groups);
+            // 多个书签时，显示聚合图标（显示总数）
+            return this.createStackedIcon(groups);
         }
     }
 
@@ -58,13 +60,17 @@ export class SVGIconCache {
     private createSingleIcon(group: GroupInfo): vscode.Uri {
         const isDark = vscode.window.activeColorTheme.kind === vscode.ColorThemeKind.Dark;
         const fillColor = this.getColorValue(group.color);
-        const stroke = isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)';
-        const fontSize = group.number >= 10 ? '7' : '9';
+        const stroke = isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.2)';
+        const textColor = this.getTextColor(group.color);
 
+        // 字体大小微调：一位数大一点，两位数小一点
+        const fontSize = group.number >= 10 ? '10' : '11';
+
+        // 增加对比度，使用更粗的描边
         const svg = `
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16">
-                <circle cx="8" cy="8" r="6" fill="${fillColor}" stroke="${stroke}" stroke-width="0.5" />
-                <text x="8" y="11" font-size="${fontSize}" font-weight="bold" fill="white" text-anchor="middle">${group.number}</text>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+                <circle cx="8" cy="8" r="7" fill="${fillColor}" stroke="${stroke}" stroke-width="1" />
+                <text x="8" y="11.5" font-family="Segoe UI, sans-serif" font-size="${fontSize}" font-weight="bold" fill="${textColor}" text-anchor="middle">${group.number}</text>
             </svg>
         `;
 
@@ -72,21 +78,25 @@ export class SVGIconCache {
     }
 
     /**
-     * 创建双圆圈图标
+     * 创建聚合图标（显示数量）
      */
-    private createDoubleIcons(groups: GroupInfo[]): vscode.Uri {
+    private createStackedIcon(groups: GroupInfo[]): vscode.Uri {
         const isDark = vscode.window.activeColorTheme.kind === vscode.ColorThemeKind.Dark;
-        const stroke = isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)';
-        const color1 = this.getColorValue(groups[0].color);
-        const color2 = this.getColorValue(groups[1].color);
+        // 使用第一个分组的颜色作为主色，或者使用特殊的“堆叠色”（如灰色或紫色）
+        // 这里使用第一个分组颜色，保持相关性
+        const fillColor = this.getColorValue(groups[0].color);
+        const stroke = isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.3)';
+        const count = groups.length;
 
+        // 聚合图标：一个带双层边框的圆，中间显示总数
         const svg = `
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="16">
-                <circle cx="5" cy="8" r="5" fill="${color1}" stroke="${stroke}" stroke-width="0.5" />
-                <text x="5" y="11" font-size="8" font-weight="bold" fill="white" text-anchor="middle">${groups[0].number}</text>
-                
-                <circle cx="14" cy="8" r="5" fill="${color2}" stroke="${stroke}" stroke-width="0.5" />
-                <text x="14" y="11" font-size="8" font-weight="bold" fill="white" text-anchor="middle">${groups[1].number}</text>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+                <!-- 底层阴影/堆叠效果 -->
+                <circle cx="9.5" cy="9.5" r="6" fill="${fillColor}" opacity="0.5" />
+                <!-- 主圆 -->
+                <circle cx="7.5" cy="7.5" r="6.5" fill="${fillColor}" stroke="${stroke}" stroke-width="1.5" />
+                <!-- 数量文字（覆盖在主圆上） -->
+                <text x="7.5" y="11" font-family="Segoe UI, sans-serif" font-size="9" font-weight="900" fill="white" text-anchor="middle">${count}</text>
             </svg>
         `;
 
@@ -94,27 +104,14 @@ export class SVGIconCache {
     }
 
     /**
-     * 创建多圆圈图标（3个及以上）
+     * 根据背景色自适应文本颜色
      */
-    private createMultipleIcons(groups: GroupInfo[]): vscode.Uri {
-        const isDark = vscode.window.activeColorTheme.kind === vscode.ColorThemeKind.Dark;
-        const stroke = isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)';
-        const color1 = this.getColorValue(groups[0].color);
-        const color2 = this.getColorValue(groups[1].color);
-
-        const svg = `
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="16">
-                <circle cx="4" cy="8" r="4" fill="${color1}" stroke="${stroke}" stroke-width="0.5" />
-                <text x="4" y="10" font-size="7" font-weight="bold" fill="white" text-anchor="middle">${groups[0].number}</text>
-                
-                <circle cx="11" cy="8" r="4" fill="${color2}" stroke="${stroke}" stroke-width="0.5" />
-                <text x="11" y="10" font-size="7" font-weight="bold" fill="white" text-anchor="middle">${groups[1].number}</text>
-                
-                <text x="19" y="11" font-size="9" font-weight="bold" fill="#999">+${groups.length - 2}</text>
-            </svg>
-        `;
-
-        return this.svgToDataUri(svg);
+    private getTextColor(color: GroupColor): string {
+        // 深色背景用白色字，浅色背景（如 Yellow）用黑色字
+        if (color === GroupColor.Yellow || color === GroupColor.Green) {
+            if (color === GroupColor.Yellow) return '#333333';
+        }
+        return '#FFFFFF';
     }
 
     /**

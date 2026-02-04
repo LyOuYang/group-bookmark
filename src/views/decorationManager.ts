@@ -183,19 +183,40 @@ export class DecorationManager {
         const bookmarks = this.dataManager.getBookmarksByFile(fileUri)
             .filter(b => b.line === line);
 
-        const messages: string[] = [];
+        const md = new vscode.MarkdownString();
+        md.supportHtml = true;
+        md.isTrusted = true;
+
+        if (bookmarks.length === 0) return md;
+
+        md.appendMarkdown(`### Bookmarks (Line ${line})\n\n`);
 
         for (const bookmark of bookmarks) {
             const relations = this.relationManager.getGroupsForBookmark(bookmark.id);
             for (const group of relations) {
-                const relation = this.dataManager.getRelation(`${bookmark.id}_${group.id}`);
+                // Find relation to get title
+                // Note: getRelation expects specific ID format? or we iterate relations
+                // Actually relationManager.getRelationsByGroup exists but getRelation?
+                // Let's use dataManager to find relation.
+                // Assuming one relation per bookmark per group
+                const allRelations = this.dataManager.getAllRelations();
+                const relation = allRelations.find(r => r.bookmarkId === bookmark.id && r.groupId === group.id);
+
                 if (relation) {
-                    messages.push(`**${group.name}**: ${relation.title}`);
+                    const colorIcon = this.getColorHex(group.color);
+                    // 使用 HTML span 显示颜色块
+                    const colorBadge = `<span style="background-color:${colorIcon};color:#fff;padding:2px 6px;border-radius:4px;">${group.displayName}</span>`;
+                    md.appendMarkdown(`${colorBadge} &nbsp; ${relation.title}\n\n`);
                 }
             }
         }
 
-        return new vscode.MarkdownString(messages.join('\n\n'));
+        return md;
+    }
+
+    private getColorHex(color: string): string {
+        // Simple mapping or return color itself if it is a valid CSS color
+        return color;
     }
 
     /**

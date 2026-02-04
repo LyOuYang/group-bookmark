@@ -123,6 +123,52 @@ export async function activate(context: vscode.ExtensionContext) {
             })
         );
 
+        // 监听文本内容变化，处理书签行号自动更新
+        context.subscriptions.push(
+            vscode.workspace.onDidChangeTextDocument(async (event) => {
+                const relativePath = PathUtils.toRelativePath(event.document.uri);
+
+                // 仅处理包含书签的文件
+                const bookmarks = bookmarkManager.getBookmarksForFile(relativePath);
+                if (bookmarks.length === 0 || event.contentChanges.length === 0) {
+                    return;
+                }
+
+                // 按倒序处理变更（虽然 VS CodeAPI 通常是一个个发，但以防万一）
+                // 实际上 onDidChangeTextDocument 每次触发可能包含多个 changes
+                // 为了简单且安全，我们假设一次只处理一个主要的行变更，或者简单的 Delta 累加
+                // 注意：VS Code 的 contentChanges 数组是根据 range 倒序排列的
+
+                for (const change of event.contentChanges) {
+                    const linesAdded = change.text.split('\n').length - 1;
+                    const linesDeleted = change.range.end.line - change.range.start.line;
+                    const netChange = linesAdded - linesDeleted;
+
+                    if (netChange === 0) {
+                        continue;
+                    }
+
+                    // 移动书签
+                    // bookmark.line 是 1-indexed
+                    // change.range.start.line 是 0-indexed
+
+                    let threshold = change.range.start.line;
+                    const isStartOfLine = change.range.start.character === 0;
+
+                    if (!isStartOfLine && netChange > 0) {
+                        // 非行首插入，阈值+1，保护当前行不被移动
+                        threshold += 1;
+                    }
+
+                    await bookmarkManager.shiftBookmarks(
+                        relativePath,
+                        threshold,
+                        netChange
+                    );
+                }
+            })
+        );
+
         context.subscriptions.push(
             vscode.workspace.onDidDeleteFiles(async (event) => {
                 for (const uri of event.files) {

@@ -285,4 +285,18 @@ export class StorageService {
     getStoragePath(): string {
         return this.storagePath;
     }
+
+    /**
+     * 获取当前活动分组 ID
+     */
+    getActiveGroupId(): string | undefined {
+        return this.context.workspaceState.get<string>('activeGroupId');
+    }
+
+    /**
+     * 设置当前活动分组 ID
+     */
+    async setActiveGroupId(id: string | undefined): Promise<void> {
+        await this.context.workspaceState.update('activeGroupId', id);
+    }
 }

@@ -61,6 +61,25 @@ export class BookmarkManager {
     }
 
     /**
+     * 移动指定行号之后的书签
+     * @param fileUri 文件路径（相对路径）
+     * @param afterLine 在该行之后（不包含）的书签需要移动 (1-indexed)
+     * @param delta 行数变化量（正数向下，负数向上）
+     */
+    async shiftBookmarks(fileUri: string, afterLine: number, delta: number): Promise<void> {
+        if (delta === 0) return;
+
+        // 批量更新 DataManager 中的数据
+        await this.dataManager.batchUpdateBookmarks(bookmark => {
+            if (bookmark.fileUri === fileUri && bookmark.line > afterLine) {
+                bookmark.line += delta;
+                return true; // 标记发生变更
+            }
+            return false;
+        });
+    }
+
+    /**
      * 更新书签路径（文件重命名时调用）
      */
     async updateBookmarkPath(oldUri: string, newUri: string): Promise<void> {

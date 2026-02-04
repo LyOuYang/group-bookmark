@@ -63,6 +63,30 @@
       {
         "command": "groupBookmarks.addBookmarkMenu",
         "title": "📌 Add Group Bookmark"
+      },
+      {
+        "command": "groupBookmarks.setActiveGroup",
+        "title": "Set as Active Group",
+        "category": "Group Bookmarks",
+        "icon": "$(pin)"
+      },
+      {
+        "command": "groupBookmarks.renameGroup",
+        "title": "Rename Group",
+        "category": "Group Bookmarks",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "groupBookmarks.deleteGroup",
+        "title": "Delete Group",
+        "category": "Group Bookmarks",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "groupBookmarks.deleteBookmark",
+        "title": "Delete Bookmark",
+        "category": "Group Bookmarks",
+        "icon": "$(trash)"
       }
     ],
     "keybindings": [
@@ -119,19 +143,30 @@
       ],
       "view/item/context": [
         {
-          "command": "groupBookmarks.renameGroup",
+          "command": "groupBookmarks.setActiveGroup",
           "when": "view == groupBookmarksView && viewItem == group",
           "group": "inline"
         },
         {
+          "command": "groupBookmarks.renameGroup",
+          "when": "view == groupBookmarksView && viewItem == group"
+        },
+        {
+          "command": "groupBookmarks.setActiveGroup",
+          "when": "view == groupBookmarksView && viewItem == group"
+        },
+        {
           "command": "groupBookmarks.deleteGroup",
-          "when": "view == groupBookmarksView && viewItem == group",
-          "group": "inline"
+          "when": "view == groupBookmarksView && viewItem == group"
         },
         {
           "command": "groupBookmarks.deleteBookmark",
           "when": "view == groupBookmarksView && viewItem == bookmark",
           "group": "inline"
+        },
+        {
+          "command": "groupBookmarks.deleteBookmark",
+          "when": "view == groupBookmarksView && viewItem == bookmark"
         }
       ]
     }

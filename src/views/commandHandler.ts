@@ -1,10 +1,9 @@
 import * as vscode from 'vscode';
-import { Bookmark } from '../models/types';
+import { Bookmark, Group, GroupColor } from '../models/types';
 import { BookmarkManager } from '../core/bookmarkManager';
 import { GroupManager } from '../core/groupManager';
 import { RelationManager } from '../core/relationManager';
 import { BookmarkTreeProvider } from '../views/treeProvider';
-import { GroupColor } from '../models/types';
 import { PathUtils } from '../utils/pathUtils';
 import { Logger } from '../utils/logger';
 
@@ -27,7 +26,7 @@ export class CommandHandler {
     registerCommands(context: vscode.ExtensionContext): void {
         // 添加书签（快捷键）
         context.subscriptions.push(
-            vscode.commands.registerCommand('groupBookmarks.addBookmark', () => this.addBookmark())
+            vscode.commands.registerCommand('groupBookmarks.addBookmark', () => this.addBookmarkWithQuickPick())
         );
 
         // 添加书签（右键菜单 - 使用 QuickPick）
@@ -65,6 +64,13 @@ export class CommandHandler {
         context.subscriptions.push(
             vscode.commands.registerCommand('groupBookmarks.renameGroup', (item: any) =>
                 this.renameGroup(item)
+            )
+        );
+
+        // 设置活动分组
+        context.subscriptions.push(
+            vscode.commands.registerCommand('groupBookmarks.setActiveGroup', (item: any) =>
+                this.setActiveGroup(item)
             )
         );
     }
@@ -152,36 +158,34 @@ export class CommandHandler {
     }
 
     /**
-     * 添加书签（使用 QuickPick 居中弹窗）
+     * 设置为活动分组
      */
-    private async addBookmarkWithQuickPick(): Promise<void> {
+    private async setActiveGroup(item: any): Promise<void> {
+        if (!item?.dataId) return;
+
+        const group = this.groupManager.getGroupById(item.dataId);
+        if (group) {
+            await this.groupManager.setActiveGroup(group.id);
+            vscode.window.showInformationMessage(`📌 Active group set to "${group.name}"`);
+        }
+    }
+
+    /**
+     * 添加书签流程入口
+     */
+    private async addBookmarkWithQuickPick(forcePickGroup = false): Promise<void> {
         const editor = vscode.window.activeTextEditor;
         if (!editor) {
             vscode.window.showWarningMessage('No active editor');
             return;
         }
 
-        // 获取当前光标位置
+        // 1. 获取上下文信息
         const position = editor.selection.active;
-        const line = position.line + 1; // 显示用（1-indexed）
         const lineText = editor.document.lineAt(position.line).text.trim();
         const fileUri = PathUtils.toRelativePath(editor.document.uri);
 
-        // 检查分组
-        const groups = this.groupManager.getAllGroups();
-        if (groups.length === 0) {
-            const createGroup = await vscode.window.showInformationMessage(
-                'No groups found. Create a group first?',
-                'Create Group'
-            );
-            if (createGroup) {
-                await this.createGroup();
-                return this.addBookmarkWithQuickPick(); // 递归调用
-            }
-            return;
-        }
-
-        // 1. 高亮当前行
+        // 2. 高亮当前行
         const highlightDecoration = vscode.window.createTextEditorDecorationType({
             backgroundColor: new vscode.ThemeColor('editor.findMatchHighlightBackground'),
             isWholeLine: true,
@@ -190,101 +194,155 @@ export class CommandHandler {
             new vscode.Range(position.line, 0, position.line, 0),
         ]);
 
-        // 2. 创建 QuickPick
-        interface GroupQuickPickItem extends vscode.QuickPickItem {
-            groupId: string;
-        }
+        try {
+            let targetGroup: Group | undefined;
 
-        const quickPick = vscode.window.createQuickPick<GroupQuickPickItem>();
-        quickPick.title = `📌 Add bookmark (Line ${line})`;
-        quickPick.placeholder = `Select group (↑/↓) | Enter title or press Enter to use: "${lineText.slice(0, 30)}..."`;
-        quickPick.value = lineText.slice(0, 60); // 预填充当前行代码
-        quickPick.ignoreFocusOut = true;
-
-        // 3. 设置分组列表
-        quickPick.items = groups.map(g => ({
-            label: `$(bookmark) ${g.displayName}`,
-            description: `${this.groupManager.getBookmarkCountInGroup(g.id)} bookmarks`,
-            detail: `Color: ${g.color}`,
-            groupId: g.id,
-        }));
-
-        // 4. 默认选中上次使用的分组
-        if (this.lastUsedGroupId) {
-            const lastGroupIndex = groups.findIndex(g => g.id === this.lastUsedGroupId);
-            if (lastGroupIndex >= 0) {
-                quickPick.activeItems = [quickPick.items[lastGroupIndex]];
-            }
-        } else if (groups.length > 0) {
-            quickPick.activeItems = [quickPick.items[0]];
-        }
-
-        // 5. 监听选择变化（更新标题显示当前分组）
-        quickPick.onDidChangeSelection(items => {
-            if (items.length > 0) {
-                const selectedGroupId = items[0].groupId;
-                const selectedGroup = groups.find(g => g.id === selectedGroupId);
-                if (selectedGroup) {
-                    quickPick.title = `📌 Add to "${selectedGroup.displayName}" (Line ${line})`;
+            // 1. 尝试获取 Active Group (除非强制选组)
+            if (!forcePickGroup) {
+                const activeGroupId = this.groupManager.getActiveGroupId();
+                if (activeGroupId) {
+                    targetGroup = this.groupManager.getGroupById(activeGroupId);
                 }
             }
-        });
 
-        // 6. 监听确认（Enter 键）
-        quickPick.onDidAccept(async () => {
-            const selectedItem = quickPick.selectedItems[0];
-            const title = quickPick.value.trim();
+            // 如果没有有效的活动分组，或者用户需要切换，则显示选择器
+            // 2. 交互循环
+            while (true) {
+                // 如果没有目标分组，进入选组环节
+                if (!targetGroup) {
+                    targetGroup = await this.pickGroup(lineText);
+                    // 如果选组取消，则整个流程结束
+                    if (!targetGroup) return;
+                }
 
-            if (!selectedItem) {
-                vscode.window.showWarningMessage('Please select a group');
-                return;
+                // 进入标题输入环节
+                const line = position.line + 1;
+                const title = await this.inputBookmarkTitle(targetGroup, lineText, line);
+
+                // title 为 null 表示用户按 Esc 取消
+                if (title === null) {
+                    return;
+                }
+
+                // title 为 undefined 表示用户按了 Back 按钮 -> 重置分组，循环重来
+                if (title === undefined) {
+                    targetGroup = undefined;
+                    continue;
+                }
+
+                // 成功：创建书签
+                await this.createBookmarkInGroup(fileUri, position, title, targetGroup);
+                break; // 退出循环
             }
-
-            if (!title) {
-                vscode.window.showWarningMessage('Bookmark title cannot be empty');
-                return;
-            }
-
-            quickPick.hide();
-
-            try {
-                // 创建书签
-                const bookmark = await this.bookmarkManager.createBookmark(
-                    fileUri,
-                    line, // 已经是 1-indexed
-                    position.character
-                );
-
-                // 添加到分组
-                await this.relationManager.addBookmarkToGroup(
-                    bookmark.id,
-                    selectedItem.groupId,
-                    title
-                );
-
-                // 记忆上次使用的分组
-                this.lastUsedGroupId = selectedItem.groupId;
-
-                const selectedGroup = groups.find(g => g.id === selectedItem.groupId);
-                vscode.window.showInformationMessage(
-                    `✅ Bookmark "${title}" added to ${selectedGroup?.displayName}`
-                );
-            } catch (error) {
-                Logger.error('Failed to add bookmark', error);
-                vscode.window.showErrorMessage(
-                    `Failed to add bookmark: ${error instanceof Error ? error.message : 'Unknown error'}`
-                );
-            }
-        });
-
-        // 7. 监听取消（Esc 键）
-        quickPick.onDidHide(() => {
+        } finally {
             highlightDecoration.dispose();
-            quickPick.dispose();
+        }
+    }
+
+    /**
+     * 选择分组
+     */
+    private async pickGroup(previewText: string): Promise<Group | undefined> {
+        const groups = this.groupManager.getAllGroups();
+
+        interface GroupQuickPickItem extends vscode.QuickPickItem {
+            groupId?: string;
+            action?: 'create';
+        }
+
+        const items: GroupQuickPickItem[] = groups.map(g => ({
+            label: `$(bookmark) ${g.displayName}`,
+            description: g.id === this.groupManager.getActiveGroupId() ? '(Active)' : '',
+            groupId: g.id
+        }));
+
+        items.push({
+            label: '$(plus) Create New Group',
+            action: 'create'
         });
 
-        // 8. 显示弹窗
-        quickPick.show();
+        const selected = await vscode.window.showQuickPick(items, {
+            placeHolder: 'Select Group',
+            title: '📌 Step 1/2: Select Group'
+        });
+
+        if (!selected) return undefined;
+
+        if (selected.action === 'create') {
+            await this.createGroup();
+            return this.pickGroup(previewText); // Retry
+        }
+
+        return this.groupManager.getGroupById(selected.groupId!);
+    }
+
+    /**
+     * 输入标题
+     * 返回 string: 标题
+     * 返回 null: 取消
+     * 返回 undefined: 回退（Change Group）
+     */
+    private async inputBookmarkTitle(group: Group, defaultText: string, line: number): Promise<string | null | undefined> {
+        // 创建 InputBox 以支持 Buttons
+        const inputBox = vscode.window.createInputBox();
+        inputBox.title = `📌 Add to "${group.name}" (Line ${line})`;
+        inputBox.placeholder = `Enter title (Default: ${defaultText.slice(0, 30)}...)`;
+        inputBox.value = ''; // 空白，用户偏好
+        inputBox.buttons = [
+            { iconPath: new vscode.ThemeIcon('arrow-left'), tooltip: 'Change Group' }
+        ];
+
+        return new Promise((resolve) => {
+            inputBox.onDidAccept(() => {
+                const value = inputBox.value.trim() || defaultText.slice(0, 50);
+                inputBox.hide();
+                resolve(value);
+            });
+
+            inputBox.onDidTriggerButton((item) => {
+                inputBox.hide();
+                resolve(undefined); // Back
+            });
+
+            inputBox.onDidHide(() => {
+                resolve(null); // Cancel (if managed by hide)
+                // 注意：accept/triggerButton hide 也会触发 onDidHide。
+                // 需要 flag 区分。
+            });
+
+            inputBox.show();
+        });
+    }
+
+    /**
+     * 创建书签逻辑封装
+     */
+    private async createBookmarkInGroup(fileUri: string, position: vscode.Position, title: string, group: Group): Promise<void> {
+        try {
+            const bookmark = await this.bookmarkManager.createBookmark(
+                fileUri,
+                position.line + 1,
+                position.character
+            );
+
+            await this.relationManager.addBookmarkToGroup(
+                bookmark.id,
+                group.id,
+                title
+            );
+
+            // 记忆为 Active Group? 用户说 "左边顶住一个...默认顶住第一个"。
+            // 如果用户没有手动 Pin，是否自动 Pin？
+            // 用户说 "默认顶住第一个，左栏组的右击菜单可以设置当前操作组"。
+            // 这意味着 Active Group 是 Explicit 的。
+            // 只有当没有 Active Group 时，我们才可能需要自动设置？
+            // 暂时不自动设置 Active，除非用户操作。
+
+            vscode.window.setStatusBarMessage(`✅ Bookmark added to ${group.name}`, 3000);
+        } catch (error) {
+            Logger.error('创建书签失败', error);
+            vscode.window.showErrorMessage('Failed to create bookmark');
+        }
     }
 
     /**

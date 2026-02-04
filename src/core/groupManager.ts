@@ -101,4 +101,12 @@ export class GroupManager {
     getBookmarkCountInGroup(groupId: string): number {
         return this.dataManager.getRelationsByGroup(groupId).length;
     }
+
+    getActiveGroupId(): string | undefined {
+        return this.dataManager.getActiveGroupId();
+    }
+
+    async setActiveGroup(id: string): Promise<void> {
+        await this.dataManager.setActiveGroupId(id);
+    }
 }
