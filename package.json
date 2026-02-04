@@ -2,7 +2,7 @@
   "name": "group-bookmarks",
   "displayName": "Group Bookmarks",
   "description": "Source Code Bookmark Group Management | 源码书签分组管理",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "publisher": "groupbookmarks",
   "repository": {
     "type": "git",
@@ -89,7 +89,7 @@
       },
       {
         "command": "groupBookmarks.addBookmarkMenu",
-        "title": "📌 Add Group Bookmark"
+        "title": "📌 Add Group Bookmark (Ctrl+Alt+B)"
       },
       {
         "command": "groupBookmarks.setActiveGroup",
@@ -125,8 +125,8 @@
     "keybindings": [
       {
         "command": "groupBookmarks.addBookmark",
-        "key": "ctrl+k b",
-        "mac": "cmd+k b"
+        "key": "ctrl+alt+b",
+        "mac": "cmd+alt+b"
       },
       {
         "command": "groupBookmarks.focusBookmarkView",

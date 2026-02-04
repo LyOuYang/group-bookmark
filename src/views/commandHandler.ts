@@ -480,7 +480,11 @@ export class CommandHandler {
 
         try {
             const group = await this.groupManager.createGroup(name, selectedColor.color);
-            vscode.window.showInformationMessage(`Group "${name}" created`);
+
+            // Auto-activate the new group for better UX
+            await this.groupManager.setActiveGroup(group.id);
+
+            vscode.window.showInformationMessage(`Group "${name}" created and set as active 📌`);
             return group;
         } catch (error) {
             Logger.error('Failed to create group', error);

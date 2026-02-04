@@ -58,32 +58,36 @@ export class BookmarkTreeProvider implements vscode.TreeDataProvider<BookmarkTre
 
     async resolveTreeItem(item: BookmarkTreeItem, element: BookmarkTreeItem, token: vscode.CancellationToken): Promise<vscode.TreeItem> {
         if (item.type === 'bookmark') {
-            // Lazy load code preview
             try {
-                const relations = this.relationManager.getGroupsForBookmark(item.dataId); // dataId is bookmarkId? No, item.dataId is relation.id in getBookmarkItems
-                // Wait, in getBookmarkItems: item.dataId = relation.id.
-                // But I need bookmark data.
+                // Determine Relation ID (item.dataId is relation.id)
+                const relationId = item.dataId;
 
-                // Let's refetch from DataManager using relation.id
-                const relationsAll = this.dataManager.getAllRelations();
-                const relation = relationsAll.find(r => r.id === item.dataId);
+                // Get Relation and Bookmark
+                // Note: We need a direct way to get Relation by ID from DataManager or existing lists
+                // Since this is lazy load, performance is less critical than initial load, but we should be efficient.
+                const relations = this.dataManager.getAllRelations();
+                const relation = relations.find(r => r.id === relationId);
 
                 if (relation) {
                     const bookmark = this.dataManager.getBookmark(relation.bookmarkId);
                     if (bookmark) {
                         const absUri = PathUtils.toAbsoluteUri(bookmark.fileUri);
                         if (absUri) {
-                            const lines = await FileUtils.readLines(absUri.fsPath, bookmark.line, bookmark.line);
-                            if (lines.length > 0) {
-                                const code = lines[0].trim();
-                                const md = new vscode.MarkdownString();
-                                md.appendCodeblock(code, 'typescript'); // Detect language? defaulting to ts/js for now or generic
-                                // Ideally detect file extension
-                                const ext = path.extname(bookmark.fileUri).replace('.', '');
-                                md.value = `\`\`\`${ext}\n${code}\n\`\`\``;
+                            // Read context: current line +/- 10 lines (Total 20+ lines)
+                            const startLine = Math.max(1, bookmark.line - 10);
+                            const endLine = bookmark.line + 10;
 
-                                // Append meta info
-                                md.appendMarkdown(`\n\n__${PathUtils.getFileName(absUri)}:${bookmark.line}__`);
+                            const lines = await FileUtils.readLines(absUri.fsPath, startLine, endLine);
+
+                            if (lines.length > 0) {
+                                const code = lines.join('\n'); // Join lines
+                                const md = new vscode.MarkdownString();
+
+                                // Detect language from file extension
+                                const ext = path.extname(bookmark.fileUri).replace('.', '') || 'typescript';
+
+                                md.appendCodeblock(code, ext);
+                                md.appendMarkdown(`\n\n__${PathUtils.getFileName(absUri)}:${startLine}-${Math.min(endLine, startLine + lines.length - 1)}__`);
 
                                 item.tooltip = md;
                             }
@@ -92,6 +96,7 @@ export class BookmarkTreeProvider implements vscode.TreeDataProvider<BookmarkTre
                 }
             } catch (error) {
                 console.error('Failed to resolve tree item', error);
+                item.tooltip = 'Failed to load preview';
             }
         }
         return item;
@@ -192,7 +197,8 @@ export class BookmarkTreeProvider implements vscode.TreeDataProvider<BookmarkTre
             );
 
             item.description = `(${fileName}:${bookmark.line})`;
-            item.tooltip = `${relation.title}\n${bookmark.fileUri}:${bookmark.line}`;
+            // Remove static tooltip to enable resolveTreeItem (lazy loading)
+            // item.tooltip = `${relation.title}\n${bookmark.fileUri}:${bookmark.line}`;
 
             // 设置点击命令
             item.command = {
