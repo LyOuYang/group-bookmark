@@ -4,6 +4,8 @@ import { Group, BookmarkGroup } from '../models/types';
 import { DataManager } from '../data/dataManager';
 import { GroupManager } from '../core/groupManager';
 import { RelationManager } from '../core/relationManager';
+import { FileUtils } from '../utils/fileUtils';
+import { PathUtils } from '../utils/pathUtils';
 
 /**
  * TreeView 项类型
@@ -52,6 +54,47 @@ export class BookmarkTreeProvider implements vscode.TreeDataProvider<BookmarkTre
 
     refresh(): void {
         this._onDidChangeTreeData.fire();
+    }
+
+    async resolveTreeItem(item: BookmarkTreeItem, element: BookmarkTreeItem, token: vscode.CancellationToken): Promise<vscode.TreeItem> {
+        if (item.type === 'bookmark') {
+            // Lazy load code preview
+            try {
+                const relations = this.relationManager.getGroupsForBookmark(item.dataId); // dataId is bookmarkId? No, item.dataId is relation.id in getBookmarkItems
+                // Wait, in getBookmarkItems: item.dataId = relation.id.
+                // But I need bookmark data.
+
+                // Let's refetch from DataManager using relation.id
+                const relationsAll = this.dataManager.getAllRelations();
+                const relation = relationsAll.find(r => r.id === item.dataId);
+
+                if (relation) {
+                    const bookmark = this.dataManager.getBookmark(relation.bookmarkId);
+                    if (bookmark) {
+                        const absUri = PathUtils.toAbsoluteUri(bookmark.fileUri);
+                        if (absUri) {
+                            const lines = await FileUtils.readLines(absUri.fsPath, bookmark.line, bookmark.line);
+                            if (lines.length > 0) {
+                                const code = lines[0].trim();
+                                const md = new vscode.MarkdownString();
+                                md.appendCodeblock(code, 'typescript'); // Detect language? defaulting to ts/js for now or generic
+                                // Ideally detect file extension
+                                const ext = path.extname(bookmark.fileUri).replace('.', '');
+                                md.value = `\`\`\`${ext}\n${code}\n\`\`\``;
+
+                                // Append meta info
+                                md.appendMarkdown(`\n\n__${PathUtils.getFileName(absUri)}:${bookmark.line}__`);
+
+                                item.tooltip = md;
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to resolve tree item', error);
+            }
+        }
+        return item;
     }
 
     getTreeItem(element: BookmarkTreeItem): vscode.TreeItem {
