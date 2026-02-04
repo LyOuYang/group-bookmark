@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*' # 当推送 v 开头的 tag 时触发（例如 v1.0.0）
 
+permissions:
+  contents: write
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -39,14 +42,10 @@ jobs:
           echo "VSIX_FILE=$VSIX_FILE" >> $GITHUB_OUTPUT
           echo "找到 VSIX 文件: $VSIX_FILE"
 
-      - name: 创建 Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: 创建 Release 并上传 VSIX
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ steps.get_version.outputs.VERSION }}
+          name: Release ${{ steps.get_version.outputs.VERSION }}
           body: |
             ## 🎉 Group Bookmarks v${{ steps.get_version.outputs.VERSION }}
             
@@ -64,15 +63,6 @@ jobs:
             - 🔄 导入/导出功能
             
             详细功能请查看 [README](https://github.com/${{ github.repository }})
+          files: ${{ steps.find_vsix.outputs.VSIX_FILE }}
           draft: false
           prerelease: false
-
-      - name: 上传 VSIX 到 Release
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./${{ steps.find_vsix.outputs.VSIX_FILE }}
-          asset_name: ${{ steps.find_vsix.outputs.VSIX_FILE }}
-          asset_content_type: application/vsix
