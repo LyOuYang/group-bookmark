@@ -1,0 +1,17 @@
+{
+  "version": "1.1.0",
+  "groups": [
+    {
+      "id": "15ff6cac-e45b-4772-a09c-51d71d652884",
+      "name": "1212",
+      "displayName": "1. 1212",
+      "number": 1,
+      "color": "#FF6B6B",
+      "order": 0,
+      "sortMode": "custom",
+      "showGhostText": false,
+      "createdAt": 1770209027839,
+      "updatedAt": 1770209518866
+    }
+  ]
+}

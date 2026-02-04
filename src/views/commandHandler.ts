@@ -280,37 +280,97 @@ export class CommandHandler {
      * 选择分组
      */
     private async pickGroup(previewText: string): Promise<Group | undefined> {
-        const groups = this.groupManager.getAllGroups();
+        return new Promise((resolve) => {
+            const groups = this.groupManager.getAllGroups();
+            const activeGroupId = this.groupManager.getActiveGroupId();
 
-        interface GroupQuickPickItem extends vscode.QuickPickItem {
-            groupId?: string;
-            action?: 'create';
-        }
+            interface GroupPickItem extends vscode.QuickPickItem {
+                groupId?: string;
+                action?: 'create' | 'create_custom';
+            }
 
-        const items: GroupQuickPickItem[] = groups.map(g => ({
-            label: `$(bookmark) ${g.displayName}`,
-            description: g.id === this.groupManager.getActiveGroupId() ? '(Active)' : '',
-            groupId: g.id
-        }));
+            const quickPick = vscode.window.createQuickPick<GroupPickItem>();
+            quickPick.placeholder = 'Select Group (Type to filter or create new)';
+            quickPick.title = '📌 Step 1/2: Select Group';
+            quickPick.matchOnDescription = true;
+            quickPick.matchOnDetail = true;
 
-        items.push({
-            label: '$(plus) Create New Group',
-            action: 'create'
+            let isResolved = false;
+
+            // 生成列表项函数
+            const getItems = (input: string): GroupPickItem[] => {
+                const items: GroupPickItem[] = groups.map(g => ({
+                    label: `$(bookmark) ${g.displayName}`,
+                    description: g.id === activeGroupId ? '(Active)' : '',
+                    groupId: g.id
+                }));
+
+                const trimmedInput = input.trim();
+
+                // 只有当输入不为空，且没有完全匹配现有分组名时，才显示快速创建选项
+                const exactMatch = groups.some(g => g.name.toLowerCase() === trimmedInput.toLowerCase());
+
+                const createOptions: GroupPickItem[] = [];
+
+                if (trimmedInput && !exactMatch) {
+                    createOptions.push({
+                        label: `$(add) Create group "${trimmedInput}"`,
+                        description: 'Select color next',
+                        alwaysShow: true,
+                        action: 'create'
+                    });
+                }
+
+                // 始终显示高级创建选项
+                createOptions.push({
+                    label: '$(plus) Create New Group...',
+                    description: 'Custom name & color',
+                    alwaysShow: true,
+                    action: 'create_custom'
+                });
+
+                return [...items, ...createOptions];
+            };
+
+            quickPick.items = getItems('');
+
+            // 监听输入变化
+            quickPick.onDidChangeValue(value => {
+                quickPick.items = getItems(value);
+            });
+
+            // 监听接受事件
+            quickPick.onDidAccept(async () => {
+                const selected = quickPick.selectedItems[0];
+                if (selected) {
+                    isResolved = true; // 标记已解决，防止 hide 触发 resolve(undefined)
+                    quickPick.hide();
+
+                    if (selected.action === 'create') {
+                        // 快速创建 (使用输入值作为名称，但询问颜色)
+                        const name = quickPick.value.trim();
+                        const newGroup = await this.createGroup(name);
+                        resolve(newGroup);
+                    } else if (selected.action === 'create_custom') {
+                        // 完全自定义创建
+                        const newGroup = await this.createGroup();
+                        resolve(newGroup);
+                    } else {
+                        // 选择了现有分组
+                        resolve(this.groupManager.getGroupById(selected.groupId!));
+                    }
+                }
+            });
+
+            quickPick.onDidHide(() => {
+                if (!isResolved) {
+                    resolve(undefined);
+                }
+                quickPick.dispose();
+            });
+
+            quickPick.show();
         });
-
-        const selected = await vscode.window.showQuickPick(items, {
-            placeHolder: 'Select Group',
-            title: '📌 Step 1/2: Select Group'
-        });
-
-        if (!selected) return undefined;
-
-        if (selected.action === 'create') {
-            await this.createGroup();
-            return this.pickGroup(previewText); // Retry
-        }
-
-        return this.groupManager.getGroupById(selected.groupId!);
     }
 
     /**
@@ -368,12 +428,9 @@ export class CommandHandler {
                 title
             );
 
-            // 记忆为 Active Group? 用户说 "左边顶住一个...默认顶住第一个"。
-            // 如果用户没有手动 Pin，是否自动 Pin？
-            // 用户说 "默认顶住第一个，左栏组的右击菜单可以设置当前操作组"。
-            // 这意味着 Active Group 是 Explicit 的。
-            // 只有当没有 Active Group 时，我们才可能需要自动设置？
-            // 暂时不自动设置 Active，除非用户操作。
+            // 自动设置为活动分组 (Auto-set Active Group)
+            // 这样下次用户操作时，会默认使用此分组，实现连续操作体验
+            await this.groupManager.setActiveGroup(group.id);
 
             vscode.window.setStatusBarMessage(`✅ Bookmark added to ${group.name}`, 3000);
         } catch (error) {
@@ -384,15 +441,21 @@ export class CommandHandler {
 
     /**
      * 创建分组
+     * @param defaultName 可选的预填名称。如果提供，跳过名称输入步骤。
+     * @returns 创建的分组，如果取消则返回 undefined
      */
-    private async createGroup(): Promise<void> {
-        const name = await vscode.window.showInputBox({
-            prompt: 'Enter group name',
-            placeHolder: 'Group name'
-        });
+    private async createGroup(defaultName?: string): Promise<Group | undefined> {
+        let name = defaultName;
 
         if (!name) {
-            return;
+            name = await vscode.window.showInputBox({
+                prompt: 'Enter group name',
+                placeHolder: 'Group name'
+            });
+        }
+
+        if (!name) {
+            return undefined;
         }
 
         // 选择颜色
@@ -408,21 +471,23 @@ export class CommandHandler {
         ];
 
         const selectedColor = await vscode.window.showQuickPick(colors, {
-            placeHolder: 'Select a color'
+            placeHolder: `Select color for "${name}"`
         });
 
         if (!selectedColor) {
-            return;
+            return undefined;
         }
 
         try {
-            await this.groupManager.createGroup(name, selectedColor.color);
+            const group = await this.groupManager.createGroup(name, selectedColor.color);
             vscode.window.showInformationMessage(`Group "${name}" created`);
+            return group;
         } catch (error) {
             Logger.error('Failed to create group', error);
             vscode.window.showErrorMessage(
                 `Failed to create group: ${error instanceof Error ? error.message : 'Unknown error'}`
             );
+            return undefined;
         }
     }
 
