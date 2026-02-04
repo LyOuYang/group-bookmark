@@ -71,6 +71,12 @@
         "icon": "$(pin)"
       },
       {
+        "command": "groupBookmarks.unsetActiveGroup",
+        "title": "Unset Active Group",
+        "category": "Group Bookmarks",
+        "icon": "$(pinned)"
+      },
+      {
         "command": "groupBookmarks.renameGroup",
         "title": "Rename Group",
         "category": "Group Bookmarks",
@@ -142,6 +148,11 @@
         }
       ],
       "view/item/context": [
+        {
+          "command": "groupBookmarks.unsetActiveGroup",
+          "when": "view == groupBookmarksView && viewItem == group_active",
+          "group": "inline"
+        },
         {
           "command": "groupBookmarks.setActiveGroup",
           "when": "view == groupBookmarksView && viewItem == group",

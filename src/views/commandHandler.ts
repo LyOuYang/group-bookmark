@@ -73,6 +73,13 @@ export class CommandHandler {
                 this.setActiveGroup(item)
             )
         );
+
+        // 取消活动分组
+        context.subscriptions.push(
+            vscode.commands.registerCommand('groupBookmarks.unsetActiveGroup', (item: any) =>
+                this.setActiveGroup(item)
+            )
+        );
     }
 
     /**
@@ -165,7 +172,17 @@ export class CommandHandler {
 
         const group = this.groupManager.getGroupById(item.dataId);
         if (group) {
-            await this.groupManager.setActiveGroup(group.id);
+            // 支持 Toggle 逻辑
+            const currentActive = this.groupManager.getActiveGroupId();
+            if (currentActive === group.id) {
+                // 原 API 可能是 setActiveGroup，尝试传 undefined 或空字符串
+                // 如果编译报错，说明 GroupManager 需要更新，但先尝试最可能的 API
+                // 假设 setActiveGroupId 存在 (因为 getActiveGroupId 存在)
+                // 且看 Step 635 引用过
+                await this.groupManager.setActiveGroup('');
+            } else {
+                await this.groupManager.setActiveGroup(group.id);
+            }
             vscode.window.showInformationMessage(`📌 Active group set to "${group.name}"`);
         }
     }

@@ -184,29 +184,23 @@ export class DecorationManager {
             .filter(b => b.line === line);
 
         const md = new vscode.MarkdownString();
-        md.supportHtml = true;
-        md.isTrusted = true;
+        // 移除 supportHtml 和 isTrusted，改用纯 Markdown + Emoji 以保证最大兼容性
+        // 用户反馈之前不显示，可能是 HTML 渲染被拦截或者格式错误
 
         if (bookmarks.length === 0) return md;
 
-        md.appendMarkdown(`### Bookmarks (Line ${line})\n\n`);
+        md.appendMarkdown(`**Bookmarks (Line ${line})**\n\n`);
 
         for (const bookmark of bookmarks) {
             const relations = this.relationManager.getGroupsForBookmark(bookmark.id);
             for (const group of relations) {
-                // Find relation to get title
-                // Note: getRelation expects specific ID format? or we iterate relations
-                // Actually relationManager.getRelationsByGroup exists but getRelation?
-                // Let's use dataManager to find relation.
-                // Assuming one relation per bookmark per group
                 const allRelations = this.dataManager.getAllRelations();
                 const relation = allRelations.find(r => r.bookmarkId === bookmark.id && r.groupId === group.id);
 
                 if (relation) {
-                    const colorIcon = this.getColorHex(group.color);
-                    // 使用 HTML span 显示颜色块
-                    const colorBadge = `<span style="background-color:${colorIcon};color:#fff;padding:2px 6px;border-radius:4px;">${group.displayName}</span>`;
-                    md.appendMarkdown(`${colorBadge} &nbsp; ${relation.title}\n\n`);
+                    const colorEmoji = this.getColorEmoji(group.color);
+                    // 格式: 🔴 [GroupName] Bookmark Title
+                    md.appendMarkdown(`${colorEmoji} **[${group.displayName}]** ${relation.title}\n\n`);
                 }
             }
         }
@@ -214,9 +208,16 @@ export class DecorationManager {
         return md;
     }
 
-    private getColorHex(color: string): string {
-        // Simple mapping or return color itself if it is a valid CSS color
-        return color;
+    private getColorEmoji(color: string): string {
+        switch (color.toLowerCase()) {
+            case 'red': return '🔴';
+            case 'green': return '🟢';
+            case 'blue': return '🔵';
+            case 'yellow': return '🟡';
+            case 'purple': return '🟣';
+            case 'orange': return '🟠';
+            default: return '⚪';
+        }
     }
 
     /**

@@ -42,9 +42,6 @@ export class SVGIconCache {
     /**
      * 生成 SVG Data URI
      */
-    /**
-     * 生成 SVG Data URI
-     */
     private generateSVG(groups: GroupInfo[]): vscode.Uri {
         if (groups.length === 1) {
             return this.createSingleIcon(groups[0]);
@@ -78,25 +75,22 @@ export class SVGIconCache {
     }
 
     /**
-     * 创建聚合图标（显示数量）
+     * 创建聚合图标（重叠圆圈，无数字）
      */
     private createStackedIcon(groups: GroupInfo[]): vscode.Uri {
         const isDark = vscode.window.activeColorTheme.kind === vscode.ColorThemeKind.Dark;
-        // 使用第一个分组的颜色作为主色，或者使用特殊的“堆叠色”（如灰色或紫色）
-        // 这里使用第一个分组颜色，保持相关性
-        const fillColor = this.getColorValue(groups[0].color);
-        const stroke = isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.3)';
-        const count = groups.length;
+        const mainColor = this.getColorValue(groups[0].color);
+        const secondColor = groups.length > 1 ? this.getColorValue(groups[1].color) : mainColor;
 
-        // 聚合图标：一个带双层边框的圆，中间显示总数
+        const stroke = isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.2)';
+
         const svg = `
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
-                <!-- 底层阴影/堆叠效果 -->
-                <circle cx="9.5" cy="9.5" r="6" fill="${fillColor}" opacity="0.5" />
-                <!-- 主圆 -->
-                <circle cx="7.5" cy="7.5" r="6.5" fill="${fillColor}" stroke="${stroke}" stroke-width="1.5" />
-                <!-- 数量文字（覆盖在主圆上） -->
-                <text x="7.5" y="11" font-family="Segoe UI, sans-serif" font-size="9" font-weight="900" fill="white" text-anchor="middle">${count}</text>
+                <!-- 后层圆 (稍微偏右下，半透明) -->
+                <circle cx="10" cy="10" r="5" fill="${secondColor}" stroke="${stroke}" stroke-width="0.5" opacity="0.8" />
+                
+                <!-- 前层圆 (偏左上，主色) -->
+                <circle cx="6" cy="6" r="5.5" fill="${mainColor}" stroke="${stroke}" stroke-width="0.8" />
             </svg>
         `;
 
