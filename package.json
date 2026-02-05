@@ -89,7 +89,7 @@
       },
       {
         "command": "groupBookmarks.addBookmarkMenu",
-        "title": "📌 Add Group Bookmark (Ctrl+Alt+B)"
+        "title": "🔖 Add Group Bookmark (Ctrl+Alt+B)"
       },
       {
         "command": "groupBookmarks.setActiveGroup",
