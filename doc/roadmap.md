@@ -3,7 +3,7 @@
 ## 文档信息
 
 **项目名称**：GroupBookmarks - 分组书签工具  
-**文档版本**：v1.0  
+**文档版本**：v1.x  
 **创建日期**：2026-02-03  
 **策略**：分阶段实现（方案 C）  
 **关联文档**：[架构设计](./architecture.md) | [PRD 终版](./prd_final.md)
@@ -42,7 +42,7 @@ V1.0 (VS Code MVP)         V1.5 (IDEA 支持)          V2.0 (生态完善)
 
 ## 2. 版本规划详解
 
-### V1.0：VS Code MVP（当前阶段）
+### V1.0：VS Code MVP (Status: Released/Maintenance)
 
 #### 目标
 
@@ -63,7 +63,9 @@ V1.0 (VS Code MVP)         V1.5 (IDEA 支持)          V2.0 (生态完善)
 - [x] Gutter 装饰器（可视化标记）
 - [x] 拖拽排序（自定义 / 按名称）
 - [x] 导入 / 导出（**数据格式通用化**）
+- [x] 导入 / 导出（**数据格式通用化**）
 - [x] 文件重命名跟踪
+- [x] Sidebar Code Preview (Lazy Load)
 
 **技术栈**：
 - 语言：TypeScript ^5.3.0

@@ -3,7 +3,7 @@
 ## 文档信息
 
 **项目名称**：GroupBookmarks - VS Code 分组书签插件  
-**文档版本**：v1.0  
+**文档版本**：v1.x  
 **创建日期**：2026-02-03  
 **架构师**：技术架构师  
 **关联文档**：[PRD 终版](./prd_final.md)
@@ -176,12 +176,12 @@
 
 **职责**：用户交互、UI 渲染
 
-| 模块                     | 文件路径                     | 职责                         |
-| ------------------------ | ---------------------------- | ---------------------------- |
-| **BookmarkTreeProvider** | `views/treeProvider.ts`      | TreeView 数据提供、拖拽支持  |
-| **DecorationManager**    | `views/decorationManager.ts` | Gutter 装饰器管理            |
-| **QuickPickService**     | `views/quickPick.ts`         | 快速选择器（选择分组、颜色） |
-| **CommandHandler**       | `views/commandHandler.ts`    | 命令回调处理                 |
+| 模块                     | 文件路径                     | 职责                                            |
+| ------------------------ | ---------------------------- | ----------------------------------------------- |
+| **BookmarkTreeProvider** | `views/treeProvider.ts`      | TreeView 数据提供、拖拽支持、**代码预览懒加载** |
+| **DecorationManager**    | `views/decorationManager.ts` | Gutter 装饰器管理                               |
+| **QuickPickService**     | `views/quickPick.ts`         | 快速选择器（选择分组、颜色）                    |
+| **CommandHandler**       | `views/commandHandler.ts`    | 命令回调处理                                    |
 
 ---
 
@@ -523,28 +523,42 @@ function getMixedColor(groups: Group[]): string {
 #### Hover 提示
 
 ```typescript
+```typescript
 const hoverProvider: vscode.HoverProvider = {
   provideHover(document, position) {
-    const bookmark = findBookmarkAtLine(document.uri, position.line);
-    if (!bookmark) return;
-    
-    const groups = getGroupsForBookmark(bookmark.id);
-    const content = new vscode.MarkdownString();
-    content.appendMarkdown(`📌 **此行包含 ${groups.length} 个书签**\n\n`);
-    
-    groups.forEach(group => {
-      const relation = getRelation(bookmark.id, group.id);
-      content.appendMarkdown(`- 🔴 **${group.name}** → ${relation.title}\n`);
-    });
-    
-    return new vscode.Hover(content);
+    // ... Implementation
   }
 };
 ```
 
 ---
 
-### 4.2 TreeView 拖拽实现
+### 4.2 Sidebar Code Preview (Lazy Load)
+
+**侧边栏代码预览机制**：
+
+利用 VS Code TreeView 的 `resolveTreeItem` API 实现懒加载：
+
+1.  **TreeView 初始化**：只渲染节点标题，不计算预览内容 (Tooltip)。
+2.  **Hover 触发**：用户鼠标悬停时，触发 `resolveTreeItem`。
+3.  **异步读取**：
+    *   获取绝对路径。
+    *   读取目标行上下 10 行代码。
+    *   生成 Markdown 代码块。
+4.  **渲染**：将 Markdown 赋值给 `item.tooltip`。
+
+```typescript
+async resolveTreeItem(item: BookmarkTreeItem): Promise<TreeItem> {
+  // 1. Read file content
+  // 2. Build MarkdownString
+  // 3. item.tooltip = md
+  return item;
+}
+```
+
+---
+
+### 4.3 TreeView 拖拽实现
 
 #### TreeDragAndDropController
 
@@ -586,7 +600,7 @@ class BookmarkTreeProvider implements
 
 ---
 
-### 4.3 文件监听方案
+### 4.4 文件监听方案
 
 #### 文件重命名追踪
 
@@ -619,7 +633,7 @@ class FileWatcher {
 
 ---
 
-### 4.4 性能优化方案
+### 4.5 性能优化方案
 
 #### 懒加载策略
 

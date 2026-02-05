@@ -6,24 +6,24 @@
 
 在发布新版本之前，请确保：
 1. 本地代码已测试通过。
-2. `CHANGELOG.md` 已更新（如果有）。
+2. `CHANGELOG.md` 已更新。
 3. 所有更改已提交并推送到 GitHub。
 
 ## 📦 正式发布步骤 (Standard Release)
 
-假设我们要发布 **v1.0.0** 正式版：
+假设我们要发布 **x.y.z** 正式版：
 
 ### 1. 更新版本号
 修改 `package.json` 中的 `version` 字段：
 ```json
 {
-  "version": "1.0.0"
+  "version": "x.y.z"
 }
 ```
 提交更改：
 ```bash
 git add package.json
-git commit -m "chore: bump version to 1.0.0"
+git commit -m "chore: bump version to x.y.z"
 git push
 ```
 
@@ -36,13 +36,13 @@ git push --follow-tags
 ### 2. 打标签 (Tagging)
 创建以 `v` 开头的标签（这是触发自动发布的关键）：
 ```bash
-git tag v1.0.0
+git tag vx.y.z
 ```
 
 ### 3. 触发发布
 推送标签到远程仓库：
 ```bash
-git push origin v1.0.0
+git push origin vx.y.z
 ```
 
 ### 4. 等待自动化完成
@@ -52,23 +52,23 @@ git push origin v1.0.0
 
 ### 5. 验证
 前往 GitHub 仓库的 **Releases** 页面，你应该能看到：
-- 标题为 `Release 1.0.0` 的新版本。
-- 附件中包含 `group-bookmarks-1.0.0.vsix`。
+- 标题为 `Release x.y.z` 的新版本。
+- 附件中包含 `group-bookmarks-x.y.z.vsix`。
 
 ---
 
 ## 🧪 测试发布步骤 (Beta/Test Release)
 
-如果你想先发一个测试版（例如 v1.0.1-beta）：
+如果你想先发一个测试版（例如 x.y.z-beta）：
 
-1. 修改 `package.json` 版本为 `1.0.1`。
+1. 修改 `package.json` 版本为 `x.y.z`。
 2. 打测试标签：
    ```bash
-   git tag v1.0.1-beta
+   git tag vx.y.z-beta
    ```
 3. 推送标签：
    ```bash
-   git push origin v1.0.1-beta
+   git push origin vx.y.z-beta
    ```
 4. GitHub Actions 依然会打包并发布，用户可以下载 VSIX 进行测试。
 
@@ -81,12 +81,12 @@ git push origin v1.0.0
 - 常见原因：版本号冲突（Tag已存在）、编译错误、权限不足（已在 workflow 中修复）。
 
 ### 2. 如何重新发布同一个版本？
-GitHub 不允许覆盖已存在的 Release Tag。如果你发布 v1.0.0 失败了需要重试：
+GitHub 不允许覆盖已存在的 Release Tag。如果你发布 vx.y.z 失败了需要重试：
 1. 在 GitHub Releases 页面删除失败的 Release。
 2. 在本地和远程删除旧 Tag：
    ```bash
-   git tag -d v1.0.0
-   git push --delete origin v1.0.0
+   git tag -d vx.y.z
+   git push --delete origin vx.y.z
    ```
 3. 重新打 Tag 并推送。
 

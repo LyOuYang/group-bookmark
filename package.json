@@ -37,11 +37,6 @@
         "category": "Group Bookmarks"
       },
       {
-        "command": "groupBookmarks.toggleGroupGhostText",
-        "title": "Toggle Ghost Text",
-        "icon": "$(eye)"
-      },
-      {
         "command": "groupBookmarks.createGroup",
         "title": "New Group",
         "category": "Group Bookmarks",

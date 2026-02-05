@@ -20,6 +20,7 @@ When reading massive source code, logic often scatters across dozens of files. "
     *   *Interaction*: Click the `👁️` inline button to toggle visibility globally.
 *   **Vector Icons**: Modern vector icons clearly indicate group status (Active/Pinned).
 *   **Icon Coexistence**: Active groups display both the 📌 Pin icon and the 🔴 Color tag simultaneously.
+*   **Auto-Pinning**: Newly created groups are automatically set as **Active**, streamlining your workflow.
 
 ### 3. 🖱️ Rapid Interaction
 *   **Code Preview**: **Hover** over a bookmark in the Side Bar to see a popup preview of the code line immediately.
@@ -36,7 +37,7 @@ When reading massive source code, logic often scatters across dozens of files. "
 ### 📌 Add Bookmark
 1.  **Position Cursor**: Move cursor to the target code line.
 2.  **Quick Menu**:
-    *   **Right Click** -> `Available Bookmarks` -> `Add to Group...`
+    *   **Right Click**: Select `🔖 Add Group Bookmark` from the editor context menu.
     *   **Shortcut**: `Ctrl+Alt+B` (Default) to open the Quick Pick menu.
     *   **Sidebar**: Click the `+` button in the view title to add the current line to a new group.
 
@@ -82,6 +83,7 @@ When reading massive source code, logic often scatters across dozens of files. "
     *   *交互*: 点击分组旁的 `👁️` 按钮即可一键开/关。
 *   **Vector Icons**: 精美的矢量图标，清晰展示分组状态（Active/Pinned）。
 *   **Icon Coexistence**: 激活的分组会同时显示 📌 图标和 🔴 颜色标签，信息一目了然。
+*   **Auto-Pinning**: 新创建的分组会自动设为 **Active (激活)** 状态，让您的操作流更加顺畅。
 
 ### 3. 🖱️ 极速交互
 *   **Code Preview**: 鼠标悬停在侧边栏书签上，立即浮窗显示该行 **代码预览**，无需跳转即可确认内容。
@@ -98,7 +100,7 @@ When reading massive source code, logic often scatters across dozens of files. "
 ### 📌 添加书签
 1.  **光标定位**: 将光标移至目标代码行。
 2.  **快捷菜单**:
-    *   **右键** -> 选择 `Available Bookmarks` -> `Add to Group...`
+    *   **Right Click**: 在编辑器右键菜单选择 `🔖 Add Group Bookmark`。
     *   **快捷键**: `Ctrl+Alt+B` (默认) 呼出快速选择菜单。
     *   **Sidebar**: 点击侧边栏标题栏的 `+` 按钮，将当前行加入新分组。
 

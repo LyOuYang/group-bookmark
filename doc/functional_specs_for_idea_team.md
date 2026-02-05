@@ -45,6 +45,8 @@
     *   **Drag Group**: 调整分组顺序。
 *   **Add Bookmark Keybinding**:
     *   建议保留 `Ctrl + Alt + B` (或 IDEA 风格快捷键)，呼出 "Add to Group" 选择菜单。
+*   **Auto-Pinning**:
+    *   创建新分组后，必须自动将其设为 **Active** 状态，以便用户连续添加书签。
 
 ## 3. 数据存储 (Data Persistence)
 
