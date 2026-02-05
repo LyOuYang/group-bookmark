@@ -29,7 +29,7 @@ git push
 
 ### 1.1 版本升级
 ```bash
-npm version patch  # 1.0.1 -> 1.0.2
+npm version patch
 git push --follow-tags
 ```
 
