@@ -14,35 +14,19 @@
 假设我们要发布 **x.y.z** 正式版：
 
 ### 1. 更新版本号
-修改 `package.json` 中的 `version` 字段：
-```json
-{
-  "version": "x.y.z"
-}
-```
-提交更改：
 ```bash
-git add package.json
-git commit -m "chore: bump version to x.y.z"
-git push
-```
+# 1. 提交所有修改
+git add .
+git commit -m "描述你的修改"
 
-### 1.1 版本升级
-```bash
+# 2. 自动升级版本、创建 commit 和 tag
 npm version patch
+
+# 3. 推送代码和标签到远程
 git push --follow-tags
-```
 
-### 2. 打标签 (Tagging)
-创建以 `v` 开头的标签（这是触发自动发布的关键）：
-```bash
-git tag vx.y.z
-```
-
-### 3. 触发发布
-推送标签到远程仓库：
-```bash
-git push origin vx.y.z
+# 4. 打包插件
+npm run package
 ```
 
 ### 4. 等待自动化完成
