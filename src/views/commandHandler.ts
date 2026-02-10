@@ -100,6 +100,20 @@ export class CommandHandler {
                 this.moveBookmark(item, 'down')
             )
         );
+
+        // 移到顶部
+        context.subscriptions.push(
+            vscode.commands.registerCommand('groupBookmarks.moveToTop', (item: any) =>
+                this.moveBookmark(item, 'top')
+            )
+        );
+
+        // 移到底部
+        context.subscriptions.push(
+            vscode.commands.registerCommand('groupBookmarks.moveToBottom', (item: any) =>
+                this.moveBookmark(item, 'bottom')
+            )
+        );
     }
 
     /**
@@ -645,9 +659,9 @@ export class CommandHandler {
     }
 
     /**
-     * 移动书签（上移/下移）
+     * 移动书签（上移/下移/移到顶部/移到底部）
      */
-    private async moveBookmark(item: any, direction: 'up' | 'down'): Promise<void> {
+    private async moveBookmark(item: any, direction: 'up' | 'down' | 'top' | 'bottom'): Promise<void> {
         if (!item?.dataId) return;
 
         // 解析 ID: bookmarkId_groupId
@@ -668,9 +682,21 @@ export class CommandHandler {
                 if (index > 0) {
                     [newRelations[index - 1], newRelations[index]] = [newRelations[index], newRelations[index - 1]];
                 }
-            } else {
+            } else if (direction === 'down') {
                 if (index < newRelations.length - 1) {
                     [newRelations[index], newRelations[index + 1]] = [newRelations[index + 1], newRelations[index]];
+                }
+            } else if (direction === 'top') {
+                // 移到顶部：将当前项移到数组开头
+                if (index > 0) {
+                    const [item] = newRelations.splice(index, 1);
+                    newRelations.unshift(item);
+                }
+            } else if (direction === 'bottom') {
+                // 移到底部：将当前项移到数组末尾
+                if (index < newRelations.length - 1) {
+                    const [item] = newRelations.splice(index, 1);
+                    newRelations.push(item);
                 }
             }
 

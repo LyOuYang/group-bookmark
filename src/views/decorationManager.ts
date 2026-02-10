@@ -3,6 +3,7 @@ import { DataManager } from '../data/dataManager';
 import { GroupManager } from '../core/groupManager';
 import { RelationManager } from '../core/relationManager';
 import { SVGIconCache, GroupInfo } from '../services/svgIconCache';
+import { PathUtils } from '../utils/pathUtils';
 
 /**
  * Gutter 装饰器管理器
@@ -76,7 +77,7 @@ export class DecorationManager {
      */
     private refreshEditor(editor: vscode.TextEditor): void {
         // 获取文件的书签
-        const relativePath = this.getRelativePath(editor.document.uri);
+        const relativePath = PathUtils.toRelativePath(editor.document.uri);
         const bookmarks = this.dataManager.getBookmarksByFile(relativePath);
 
         // 如果没有书签，清除所有装饰
@@ -277,18 +278,7 @@ export class DecorationManager {
         });
     }
 
-    /**
-     * 获取相对路径
-     */
-    private getRelativePath(uri: vscode.Uri): string {
-        const workspaceFolder = vscode.workspace.getWorkspaceFolder(uri);
-        if (!workspaceFolder) {
-            return uri.fsPath;
-        }
 
-        const relativePath = uri.fsPath.substring(workspaceFolder.uri.fsPath.length + 1);
-        return relativePath.replace(/\\/g, '/');
-    }
 
     /**
      * 释放资源

@@ -55,6 +55,18 @@
         "icon": "$(arrow-down)"
       },
       {
+        "command": "groupBookmarks.moveToTop",
+        "title": "Move to Top",
+        "category": "Group Bookmarks",
+        "icon": "$(arrow-up)"
+      },
+      {
+        "command": "groupBookmarks.moveToBottom",
+        "title": "Move to Bottom",
+        "category": "Group Bookmarks",
+        "icon": "$(arrow-down)"
+      },
+      {
         "command": "groupBookmarks.importBookmarks",
         "title": "Import Bookmarks",
         "category": "Group Bookmarks",
@@ -203,6 +215,26 @@
         {
           "command": "groupBookmarks.deleteGroup",
           "when": "view == groupBookmarksView && viewItem =~ /^group/"
+        },
+        {
+          "command": "groupBookmarks.moveUp",
+          "when": "view == groupBookmarksView && viewItem == bookmark",
+          "group": "1_move@1"
+        },
+        {
+          "command": "groupBookmarks.moveDown",
+          "when": "view == groupBookmarksView && viewItem == bookmark",
+          "group": "1_move@2"
+        },
+        {
+          "command": "groupBookmarks.moveToTop",
+          "when": "view == groupBookmarksView && viewItem == bookmark",
+          "group": "1_move@3"
+        },
+        {
+          "command": "groupBookmarks.moveToBottom",
+          "when": "view == groupBookmarksView && viewItem == bookmark",
+          "group": "1_move@4"
         },
         {
           "command": "groupBookmarks.deleteBookmark",
