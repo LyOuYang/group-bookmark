@@ -73,13 +73,19 @@ export class BookmarkTreeProvider implements vscode.TreeDataProvider<BookmarkTre
                     if (bookmark) {
                         const absUri = PathUtils.toAbsoluteUri(bookmark.fileUri);
                         if (absUri) {
-                            // Read context: current line +/- 10 lines (Total 20+ lines)
+                            // Read context: bookmark line centered with +/- 10 lines (Total 20+ lines)
                             const startLine = Math.max(1, bookmark.line - 10);
                             const endLine = bookmark.line + 10;
 
                             const lines = await FileUtils.readLines(absUri.fsPath, startLine, endLine);
 
                             if (lines.length > 0) {
+                                // Add marker to the bookmark line
+                                const bookmarkLineIndex = bookmark.line - startLine;
+                                if (bookmarkLineIndex >= 0 && bookmarkLineIndex < lines.length) {
+                                    lines[bookmarkLineIndex] = lines[bookmarkLineIndex] + ' // ⬅️ 此书签行';
+                                }
+
                                 const code = lines.join('\n'); // Join lines
                                 const md = new vscode.MarkdownString();
 

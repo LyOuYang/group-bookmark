@@ -67,6 +67,13 @@ export class CommandHandler {
             )
         );
 
+        // 重命名书签
+        context.subscriptions.push(
+            vscode.commands.registerCommand('groupBookmarks.renameBookmark', (item: any) =>
+                this.renameBookmark(item)
+            )
+        );
+
         // 切换分组 Ghost Text 显示
         context.subscriptions.push(
             vscode.commands.registerCommand('groupBookmarks.toggleGroupGhostText', (item: any) =>
@@ -655,6 +662,62 @@ export class CommandHandler {
             // 触发数据更新，视图自动刷新
         } catch (error) {
             Logger.error('Failed to toggle group ghost text', error);
+        }
+    }
+
+    /**
+     * 重命名书签
+     */
+    private async renameBookmark(item: any): Promise<void> {
+        if (!item?.dataId) {
+            Logger.error('Invalid bookmark item', { item });
+            vscode.window.showErrorMessage('Invalid bookmark item');
+            return;
+        }
+
+        // item.dataId 是 relation.id (bookmarkId_groupId)
+        const parts = item.dataId.split('_');
+        if (parts.length !== 2) {
+            Logger.error('Invalid bookmark ID format', { dataId: item.dataId });
+            vscode.window.showErrorMessage('Invalid bookmark ID format');
+            return;
+        }
+        const [bookmarkId, groupId] = parts;
+
+        // 获取当前关系
+        const relations = this.relationManager.getRelationsInGroup(groupId);
+        const relation = relations.find(r => r.id === item.dataId);
+
+        if (!relation) {
+            vscode.window.showErrorMessage('Bookmark not found');
+            return;
+        }
+
+        // 弹出输入框让用户输入新标题
+        const newTitle = await vscode.window.showInputBox({
+            prompt: 'Enter new bookmark title',
+            value: relation.title,
+            placeHolder: 'Bookmark title'
+        });
+
+        // 用户取消或输入空标题
+        if (!newTitle || newTitle.trim() === '') {
+            return;
+        }
+
+        // 标题没有变化
+        if (newTitle === relation.title) {
+            return;
+        }
+
+        try {
+            await this.relationManager.updateBookmarkTitle(bookmarkId, groupId, newTitle);
+            vscode.window.showInformationMessage(`Bookmark renamed to "${newTitle}"`);
+        } catch (error) {
+            Logger.error('Failed to rename bookmark', error);
+            vscode.window.showErrorMessage(
+                `Failed to rename bookmark: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
         }
     }
 

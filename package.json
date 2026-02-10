@@ -123,6 +123,12 @@
         "icon": "$(trash)"
       },
       {
+        "command": "groupBookmarks.renameBookmark",
+        "title": "Rename Bookmark",
+        "category": "Group Bookmarks",
+        "icon": "$(edit)"
+      },
+      {
         "command": "groupBookmarks.deleteBookmark",
         "title": "Delete Bookmark",
         "category": "Group Bookmarks",
@@ -235,6 +241,11 @@
           "command": "groupBookmarks.moveToBottom",
           "when": "view == groupBookmarksView && viewItem == bookmark",
           "group": "1_move@4"
+        },
+        {
+          "command": "groupBookmarks.renameBookmark",
+          "when": "view == groupBookmarksView && viewItem == bookmark",
+          "group": "2_edit@1"
         },
         {
           "command": "groupBookmarks.deleteBookmark",
