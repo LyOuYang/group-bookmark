@@ -1,5 +1,12 @@
 import * as vscode from 'vscode';
-import { Bookmark, Group, BookmarkGroup } from '../models/types';
+import {
+    Bookmark,
+    Group,
+    BookmarkGroup,
+    TermNote,
+    TermNoteGroup,
+    TermNoteGroupRelation
+} from '../models/types';
 import { StorageService } from './storageService';
 
 /**
@@ -9,14 +16,23 @@ export class DataManager {
     private bookmarks: Map<string, Bookmark> = new Map();
     private groups: Map<string, Group> = new Map();
     private relations: Map<string, BookmarkGroup> = new Map();
+    private termNotes: Map<string, TermNote> = new Map();
+    private termNoteGroups: Map<string, TermNoteGroup> = new Map();
+    private termNoteRelations: Map<string, TermNoteGroupRelation> = new Map();
 
     private _onDidChangeBookmarks = new vscode.EventEmitter<void>();
     private _onDidChangeGroups = new vscode.EventEmitter<void>();
     private _onDidChangeRelations = new vscode.EventEmitter<void>();
+    private _onDidChangeTermNotes = new vscode.EventEmitter<void>();
+    private _onDidChangeTermNoteGroups = new vscode.EventEmitter<void>();
+    private _onDidChangeTermNoteRelations = new vscode.EventEmitter<void>();
 
     public readonly onDidChangeBookmarks = this._onDidChangeBookmarks.event;
     public readonly onDidChangeGroups = this._onDidChangeGroups.event;
     public readonly onDidChangeRelations = this._onDidChangeRelations.event;
+    public readonly onDidChangeTermNotes = this._onDidChangeTermNotes.event;
+    public readonly onDidChangeTermNoteGroups = this._onDidChangeTermNoteGroups.event;
+    public readonly onDidChangeTermNoteRelations = this._onDidChangeTermNoteRelations.event;
 
     constructor(private storageService: StorageService) { }
 
@@ -29,14 +45,26 @@ export class DataManager {
         this._onDidChangeGroups.fire(); // 触发 UI 刷新
     }
 
+    getActiveTermNoteGroupId(): string | undefined {
+        return this.storageService.getActiveTermNoteGroupId();
+    }
+
+    async setActiveTermNoteGroupId(id: string | undefined): Promise<void> {
+        await this.storageService.setActiveTermNoteGroupId(id);
+        this._onDidChangeTermNoteGroups.fire();
+    }
+
     /**
      * 从存储加载所有数据
      */
     async loadAll(): Promise<void> {
-        const [bookmarks, groups, relations] = await Promise.all([
+        const [bookmarks, groups, relations, termNotes, termNoteGroups, termNoteRelations] = await Promise.all([
             this.storageService.loadBookmarks(),
             this.storageService.loadGroups(),
-            this.storageService.loadRelations()
+            this.storageService.loadRelations(),
+            this.storageService.loadTermNotes(),
+            this.storageService.loadTermNoteGroups(),
+            this.storageService.loadTermNoteRelations()
         ]);
 
         this.bookmarks.clear();
@@ -47,6 +75,15 @@ export class DataManager {
 
         this.relations.clear();
         relations.forEach(r => this.relations.set(r.id, r));
+
+        this.termNotes.clear();
+        termNotes.forEach(note => this.termNotes.set(note.id, note));
+
+        this.termNoteGroups.clear();
+        termNoteGroups.forEach(group => this.termNoteGroups.set(group.id, group));
+
+        this.termNoteRelations.clear();
+        termNoteRelations.forEach(relation => this.termNoteRelations.set(relation.id, relation));
     }
 
     // ===== Bookmark 操作 =====
@@ -254,6 +291,50 @@ export class DataManager {
         this._onDidChangeRelations.fire();
     }
 
+    // ===== Term Note 操作 =====
+
+    getTermNote(id: string): TermNote | undefined {
+        return this.termNotes.get(id);
+    }
+
+    getAllTermNotes(): TermNote[] {
+        return Array.from(this.termNotes.values());
+    }
+
+    async addTermNote(termNote: TermNote): Promise<void> {
+        this.termNotes.set(termNote.id, termNote);
+        await this.storageService.saveTermNotes(this.getAllTermNotes());
+        this._onDidChangeTermNotes.fire();
+    }
+
+    getTermNoteGroup(id: string): TermNoteGroup | undefined {
+        return this.termNoteGroups.get(id);
+    }
+
+    getAllTermNoteGroups(): TermNoteGroup[] {
+        return Array.from(this.termNoteGroups.values()).sort((a, b) => a.order - b.order);
+    }
+
+    async addTermNoteGroup(group: TermNoteGroup): Promise<void> {
+        this.termNoteGroups.set(group.id, group);
+        await this.storageService.saveTermNoteGroups(this.getAllTermNoteGroups());
+        this._onDidChangeTermNoteGroups.fire();
+    }
+
+    getTermNoteRelation(id: string): TermNoteGroupRelation | undefined {
+        return this.termNoteRelations.get(id);
+    }
+
+    getAllTermNoteRelations(): TermNoteGroupRelation[] {
+        return Array.from(this.termNoteRelations.values());
+    }
+
+    async addTermNoteRelation(relation: TermNoteGroupRelation): Promise<void> {
+        this.termNoteRelations.set(relation.id, relation);
+        await this.storageService.saveTermNoteRelations(this.getAllTermNoteRelations());
+        this._onDidChangeTermNoteRelations.fire();
+    }
+
     async deleteRelation(id: string): Promise<void> {
         this.relations.delete(id);
         await this.storageService.saveRelations(this.getAllRelations());
@@ -279,15 +360,24 @@ export class DataManager {
         this.bookmarks.clear();
         this.groups.clear();
         this.relations.clear();
+        this.termNotes.clear();
+        this.termNoteGroups.clear();
+        this.termNoteRelations.clear();
 
         await Promise.all([
             this.storageService.saveBookmarks([]),
             this.storageService.saveGroups([]),
-            this.storageService.saveRelations([])
+            this.storageService.saveRelations([]),
+            this.storageService.saveTermNotes([]),
+            this.storageService.saveTermNoteGroups([]),
+            this.storageService.saveTermNoteRelations([])
         ]);
 
         this._onDidChangeBookmarks.fire();
         this._onDidChangeGroups.fire();
         this._onDidChangeRelations.fire();
+        this._onDidChangeTermNotes.fire();
+        this._onDidChangeTermNoteGroups.fire();
+        this._onDidChangeTermNoteRelations.fire();
     }
 }

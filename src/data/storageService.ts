@@ -9,7 +9,13 @@ import {
     GroupsData,
     RelationsData,
     ExportData,
-    DATA_VERSION
+    DATA_VERSION,
+    TermNote,
+    TermNoteGroup,
+    TermNoteGroupRelation,
+    TermNotesData,
+    TermNoteGroupsData,
+    TermNoteRelationsData
 } from '../models/types';
 import { MigrationService } from '../services/migrationService';
 
@@ -168,6 +174,105 @@ export class StorageService {
     }
 
     /**
+     * 加载术语笔记数据
+     */
+    async loadTermNotes(): Promise<TermNote[]> {
+        const filePath = path.join(this.storagePath, 'term-notes.json');
+        if (!fs.existsSync(filePath)) {
+            return [];
+        }
+
+        try {
+            const content = fs.readFileSync(filePath, 'utf-8');
+            const data: TermNotesData = JSON.parse(content);
+            return data.notes || [];
+        } catch (error) {
+            console.error('Failed to load term notes:', error);
+            return [];
+        }
+    }
+
+    /**
+     * 保存术语笔记数据
+     */
+    async saveTermNotes(notes: TermNote[]): Promise<void> {
+        const filePath = path.join(this.storagePath, 'term-notes.json');
+        const data: TermNotesData = {
+            version: DATA_VERSION,
+            notes
+        };
+
+        this.scheduleBackup();
+        fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+    }
+
+    /**
+     * 加载术语笔记分组数据
+     */
+    async loadTermNoteGroups(): Promise<TermNoteGroup[]> {
+        const filePath = path.join(this.storagePath, 'term-note-groups.json');
+        if (!fs.existsSync(filePath)) {
+            return [];
+        }
+
+        try {
+            const content = fs.readFileSync(filePath, 'utf-8');
+            const data: TermNoteGroupsData = JSON.parse(content);
+            return data.groups || [];
+        } catch (error) {
+            console.error('Failed to load term note groups:', error);
+            return [];
+        }
+    }
+
+    /**
+     * 保存术语笔记分组数据
+     */
+    async saveTermNoteGroups(groups: TermNoteGroup[]): Promise<void> {
+        const filePath = path.join(this.storagePath, 'term-note-groups.json');
+        const data: TermNoteGroupsData = {
+            version: DATA_VERSION,
+            groups
+        };
+
+        this.scheduleBackup();
+        fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+    }
+
+    /**
+     * 加载术语笔记关联关系数据
+     */
+    async loadTermNoteRelations(): Promise<TermNoteGroupRelation[]> {
+        const filePath = path.join(this.storagePath, 'term-note-relations.json');
+        if (!fs.existsSync(filePath)) {
+            return [];
+        }
+
+        try {
+            const content = fs.readFileSync(filePath, 'utf-8');
+            const data: TermNoteRelationsData = JSON.parse(content);
+            return data.relations || [];
+        } catch (error) {
+            console.error('Failed to load term note relations:', error);
+            return [];
+        }
+    }
+
+    /**
+     * 保存术语笔记关联关系数据
+     */
+    async saveTermNoteRelations(relations: TermNoteGroupRelation[]): Promise<void> {
+        const filePath = path.join(this.storagePath, 'term-note-relations.json');
+        const data: TermNoteRelationsData = {
+            version: DATA_VERSION,
+            relations
+        };
+
+        this.scheduleBackup();
+        fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+    }
+
+    /**
      * 保存关联关系数据
      */
     async saveRelations(relations: BookmarkGroup[]): Promise<void> {
@@ -209,7 +314,14 @@ export class StorageService {
             fs.mkdirSync(backupDir, { recursive: true });
 
             // 复制所有文件
-            const files = ['bookmarks.json', 'groups.json', 'relations.json'];
+            const files = [
+                'bookmarks.json',
+                'groups.json',
+                'relations.json',
+                'term-notes.json',
+                'term-note-groups.json',
+                'term-note-relations.json'
+            ];
             for (const file of files) {
                 const sourcePath = path.join(this.storagePath, file);
                 if (fs.existsSync(sourcePath)) {
@@ -298,5 +410,19 @@ export class StorageService {
      */
     async setActiveGroupId(id: string | undefined): Promise<void> {
         await this.context.workspaceState.update('activeGroupId', id);
+    }
+
+    /**
+     * 获取当前活动术语笔记分组 ID
+     */
+    getActiveTermNoteGroupId(): string | undefined {
+        return this.context.workspaceState.get<string>('activeTermNoteGroupId');
+    }
+
+    /**
+     * 设置当前活动术语笔记分组 ID
+     */
+    async setActiveTermNoteGroupId(id: string | undefined): Promise<void> {
+        await this.context.workspaceState.update('activeTermNoteGroupId', id);
     }
 }

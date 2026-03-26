@@ -39,6 +39,44 @@ export interface BookmarkGroup {
 }
 
 /**
+ * 术语笔记数据模型
+ */
+export interface TermNote {
+    id: string;
+    term: string;
+    normalizedTerm: string;
+    contentMarkdown: string;
+    createdAt: number;
+    updatedAt: number;
+    lastViewedAt?: number;
+}
+
+/**
+ * 术语笔记分组数据模型
+ */
+export interface TermNoteGroup {
+    id: string;
+    name: string;
+    displayName: string;
+    number: number;
+    color: GroupColor;
+    order: number;
+    createdAt: number;
+    updatedAt: number;
+}
+
+/**
+ * 术语笔记-分组关联关系
+ */
+export interface TermNoteGroupRelation {
+    id: string;
+    termNoteId: string;
+    groupId: string;
+    order: number;
+    createdAt: number;
+}
+
+/**
  * 分组颜色枚举
  */
 export enum GroupColor {
@@ -92,6 +130,30 @@ export interface GroupsData {
 export interface RelationsData {
     version: string;
     relations: BookmarkGroup[];
+}
+
+/**
+ * 存储数据格式（term-notes.json）
+ */
+export interface TermNotesData {
+    version: string;
+    notes: TermNote[];
+}
+
+/**
+ * 存储数据格式（term-note-groups.json）
+ */
+export interface TermNoteGroupsData {
+    version: string;
+    groups: TermNoteGroup[];
+}
+
+/**
+ * 存储数据格式（term-note-relations.json）
+ */
+export interface TermNoteRelationsData {
+    version: string;
+    relations: TermNoteGroupRelation[];
 }
 
 /**
