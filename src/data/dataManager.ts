@@ -291,6 +291,12 @@ export class DataManager {
         this._onDidChangeRelations.fire();
     }
 
+    async deleteRelation(id: string): Promise<void> {
+        this.relations.delete(id);
+        await this.storageService.saveRelations(this.getAllRelations());
+        this._onDidChangeRelations.fire();
+    }
+
     // ===== Term Note 操作 =====
 
     getTermNote(id: string): TermNote | undefined {
@@ -307,6 +313,36 @@ export class DataManager {
         this._onDidChangeTermNotes.fire();
     }
 
+    async updateTermNote(id: string, updates: Partial<TermNote>): Promise<void> {
+        const termNote = this.termNotes.get(id);
+        if (!termNote) {
+            return;
+        }
+
+        Object.assign(termNote, updates, { updatedAt: Date.now() });
+        await this.storageService.saveTermNotes(this.getAllTermNotes());
+        this._onDidChangeTermNotes.fire();
+    }
+
+    async deleteTermNote(id: string): Promise<void> {
+        this.termNotes.delete(id);
+
+        const relationsToDelete = Array.from(this.termNoteRelations.values())
+            .filter(relation => relation.termNoteId === id);
+
+        for (const relation of relationsToDelete) {
+            this.termNoteRelations.delete(relation.id);
+        }
+
+        await Promise.all([
+            this.storageService.saveTermNotes(this.getAllTermNotes()),
+            this.storageService.saveTermNoteRelations(this.getAllTermNoteRelations())
+        ]);
+
+        this._onDidChangeTermNotes.fire();
+        this._onDidChangeTermNoteRelations.fire();
+    }
+
     getTermNoteGroup(id: string): TermNoteGroup | undefined {
         return this.termNoteGroups.get(id);
     }
@@ -317,6 +353,48 @@ export class DataManager {
 
     async addTermNoteGroup(group: TermNoteGroup): Promise<void> {
         this.termNoteGroups.set(group.id, group);
+        await this.storageService.saveTermNoteGroups(this.getAllTermNoteGroups());
+        this._onDidChangeTermNoteGroups.fire();
+    }
+
+    async updateTermNoteGroup(id: string, updates: Partial<TermNoteGroup>): Promise<void> {
+        const group = this.termNoteGroups.get(id);
+        if (!group) {
+            return;
+        }
+
+        Object.assign(group, updates, { updatedAt: Date.now() });
+        await this.storageService.saveTermNoteGroups(this.getAllTermNoteGroups());
+        this._onDidChangeTermNoteGroups.fire();
+    }
+
+    async deleteTermNoteGroup(id: string): Promise<void> {
+        this.termNoteGroups.delete(id);
+
+        const relationsToDelete = Array.from(this.termNoteRelations.values())
+            .filter(relation => relation.groupId === id);
+
+        for (const relation of relationsToDelete) {
+            this.termNoteRelations.delete(relation.id);
+        }
+
+        await Promise.all([
+            this.storageService.saveTermNoteGroups(this.getAllTermNoteGroups()),
+            this.storageService.saveTermNoteRelations(this.getAllTermNoteRelations())
+        ]);
+
+        this._onDidChangeTermNoteGroups.fire();
+        this._onDidChangeTermNoteRelations.fire();
+    }
+
+    async reorderTermNoteGroups(groupIds: string[]): Promise<void> {
+        groupIds.forEach((id, index) => {
+            const group = this.termNoteGroups.get(id);
+            if (group) {
+                group.order = index;
+            }
+        });
+
         await this.storageService.saveTermNoteGroups(this.getAllTermNoteGroups());
         this._onDidChangeTermNoteGroups.fire();
     }
@@ -335,10 +413,33 @@ export class DataManager {
         this._onDidChangeTermNoteRelations.fire();
     }
 
-    async deleteRelation(id: string): Promise<void> {
-        this.relations.delete(id);
-        await this.storageService.saveRelations(this.getAllRelations());
-        this._onDidChangeRelations.fire();
+    async updateTermNoteRelation(id: string, updates: Partial<TermNoteGroupRelation>): Promise<void> {
+        const relation = this.termNoteRelations.get(id);
+        if (!relation) {
+            return;
+        }
+
+        Object.assign(relation, updates);
+        await this.storageService.saveTermNoteRelations(this.getAllTermNoteRelations());
+        this._onDidChangeTermNoteRelations.fire();
+    }
+
+    async deleteTermNoteRelation(id: string): Promise<void> {
+        this.termNoteRelations.delete(id);
+        await this.storageService.saveTermNoteRelations(this.getAllTermNoteRelations());
+        this._onDidChangeTermNoteRelations.fire();
+    }
+
+    async reorderTermNoteRelationsInGroup(groupId: string, relationIds: string[]): Promise<void> {
+        relationIds.forEach((id, index) => {
+            const relation = this.termNoteRelations.get(id);
+            if (relation && relation.groupId === groupId) {
+                relation.order = index;
+            }
+        });
+
+        await this.storageService.saveTermNoteRelations(this.getAllTermNoteRelations());
+        this._onDidChangeTermNoteRelations.fire();
     }
 
     async reorderRelationsInGroup(groupId: string, relationIds: string[]): Promise<void> {
