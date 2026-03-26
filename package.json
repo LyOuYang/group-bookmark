@@ -264,6 +264,8 @@
     "compile": "esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node",
     "watch": "npm run compile -- --watch",
     "pretest": "npm run compile",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "lint": "eslint src --ext ts",
     "package": "vsce package"
   },
@@ -276,6 +278,7 @@
     "@vscode/vsce": "^2.22.0",
     "esbuild": "^0.19.0",
     "eslint": "^8.50.0",
+    "vitest": "^2.1.0",
     "typescript": "^5.3.0"
   },
   "dependencies": {
