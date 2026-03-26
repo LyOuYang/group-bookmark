@@ -263,8 +263,9 @@
     "vscode:prepublish": "npm run compile",
     "compile": "esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node",
     "watch": "npm run compile -- --watch",
-    "pretest": "npm run compile",
+    "pretest": "npm run compile && npm run test:typecheck",
     "test": "vitest run",
+    "test:typecheck": "tsc -p tsconfig.vitest.json --noEmit",
     "test:watch": "vitest",
     "lint": "eslint src --ext ts",
     "package": "vsce package"
