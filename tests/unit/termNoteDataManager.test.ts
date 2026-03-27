@@ -362,6 +362,71 @@ describe('term note data manager', () => {
     expect(groupManager.getAllGroups()).toHaveLength(0);
   });
 
+  it('clears the active term-note group state when deleting the active group', async () => {
+    const storage = createStorageDouble();
+    const dataManager = new DataManager(storage as any);
+    const groupManager = new TermNoteGroupManager(dataManager);
+
+    const group = await groupManager.createGroup('User Notes');
+    await groupManager.setActiveTermNoteGroupId(group.id);
+    await groupManager.deleteGroup(group.id);
+
+    expect(groupManager.getActiveTermNoteGroupId()).toBeUndefined();
+  });
+
+  it('rejects setting the active term-note group to a nonexistent id', async () => {
+    const storage = createStorageDouble();
+    const dataManager = new DataManager(storage as any);
+    const groupManager = new TermNoteGroupManager(dataManager);
+
+    await expect(groupManager.setActiveTermNoteGroupId('missing-group')).rejects.toThrow(
+      'Term note group missing-group not found'
+    );
+    expect(groupManager.getActiveTermNoteGroupId()).toBeUndefined();
+  });
+
+  it('rejects blank term-note group creation', async () => {
+    const storage = createStorageDouble();
+    const dataManager = new DataManager(storage as any);
+    const groupManager = new TermNoteGroupManager(dataManager);
+
+    await expect(groupManager.createGroup('   ')).rejects.toThrow('Group name cannot be blank');
+  });
+
+  it('trims term-note group names before persistence', async () => {
+    const storage = createStorageDouble();
+    const dataManager = new DataManager(storage as any);
+    const groupManager = new TermNoteGroupManager(dataManager);
+
+    const group = await groupManager.createGroup('  User Notes  ');
+
+    expect(group.name).toBe('User Notes');
+    expect(group.displayName).toBe('1. User Notes');
+    expect(dataManager.getTermNoteGroup(group.id)?.name).toBe('User Notes');
+  });
+
+  it('rejects blank term-note group rename', async () => {
+    const storage = createStorageDouble();
+    const dataManager = new DataManager(storage as any);
+    const groupManager = new TermNoteGroupManager(dataManager);
+
+    const group = await groupManager.createGroup('User Notes');
+
+    await expect(groupManager.renameGroup(group.id, ' \t ')).rejects.toThrow('Group name cannot be blank');
+  });
+
+  it('trims term-note group rename values before persistence', async () => {
+    const storage = createStorageDouble();
+    const dataManager = new DataManager(storage as any);
+    const groupManager = new TermNoteGroupManager(dataManager);
+
+    const group = await groupManager.createGroup('User Notes');
+    await groupManager.renameGroup(group.id, '  Reference Notes  ');
+
+    expect(groupManager.getGroupById(group.id)?.name).toBe('Reference Notes');
+    expect(groupManager.getGroupById(group.id)?.displayName).toBe('1. Reference Notes');
+  });
+
   it('adds a term note to a group without relying on composite relation ids', async () => {
     const storage = createStorageDouble({
       termNotes: [makeTermNote('note-1', { term: 'User Table', normalizedTerm: 'user_table' })],
