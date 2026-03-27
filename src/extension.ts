@@ -75,8 +75,7 @@ export async function activate(context: vscode.ExtensionContext) {
         const termNoteCommandHandler = new TermNoteCommandHandler(
             termNoteManager,
             termNoteGroupManager,
-            termNoteRelationManager,
-            termNoteTreeProvider
+            termNoteRelationManager
         );
         termNoteCommandHandler.registerCommands(context);
 

@@ -105,9 +105,6 @@ describe('TermNoteCommandHandler', () => {
     const relationManager = {
       addTermNoteToGroup: vi.fn().mockResolvedValue(undefined),
     };
-    const treeProvider = {
-      refresh: vi.fn(),
-    };
 
     mockState.window.activeTextEditor = {
       document: {
@@ -121,15 +118,14 @@ describe('TermNoteCommandHandler', () => {
     const handler = new TermNoteCommandHandler(
       termNoteManager as any,
       termNoteGroupManager as any,
-      relationManager as any,
-      treeProvider as any
+      relationManager as any
     );
 
     await handler.addTermNoteFromSelection();
 
     expect(termNoteManager.createOrGetTermNote).toHaveBeenCalledWith('User_Table');
     expect(relationManager.addTermNoteToGroup).toHaveBeenCalledWith('note-1', 'group-1');
-    expect(treeProvider.refresh).toHaveBeenCalledTimes(1);
+    expect(mockState.window.showErrorMessage).not.toHaveBeenCalled();
   });
 
   it('selects an existing group when no active term-note group is set', async () => {
@@ -144,9 +140,6 @@ describe('TermNoteCommandHandler', () => {
     };
     const relationManager = {
       addTermNoteToGroup: vi.fn().mockResolvedValue(undefined),
-    };
-    const treeProvider = {
-      refresh: vi.fn(),
     };
 
     mockState.window.activeTextEditor = {
@@ -165,8 +158,7 @@ describe('TermNoteCommandHandler', () => {
     const handler = new TermNoteCommandHandler(
       termNoteManager as any,
       termNoteGroupManager as any,
-      relationManager as any,
-      treeProvider as any
+      relationManager as any
     );
 
     await handler.addTermNoteFromSelection();
@@ -191,9 +183,6 @@ describe('TermNoteCommandHandler', () => {
     const relationManager = {
       addTermNoteToGroup: vi.fn().mockResolvedValue(undefined),
     };
-    const treeProvider = {
-      refresh: vi.fn(),
-    };
 
     mockState.window.activeTextEditor = {
       document: {
@@ -212,8 +201,7 @@ describe('TermNoteCommandHandler', () => {
     const handler = new TermNoteCommandHandler(
       termNoteManager as any,
       termNoteGroupManager as any,
-      relationManager as any,
-      treeProvider as any
+      relationManager as any
     );
 
     await handler.addTermNoteFromSelection();
@@ -239,9 +227,6 @@ describe('TermNoteCommandHandler', () => {
     const relationManager = {
       addTermNoteToGroup: vi.fn(),
     };
-    const treeProvider = {
-      refresh: vi.fn(),
-    };
 
     mockState.window.activeTextEditor = {
       document: {
@@ -260,8 +245,7 @@ describe('TermNoteCommandHandler', () => {
     const handler = new TermNoteCommandHandler(
       termNoteManager as any,
       termNoteGroupManager as any,
-      relationManager as any,
-      treeProvider as any
+      relationManager as any
     );
 
     await expect(handler.addTermNoteFromSelection()).resolves.toBeUndefined();
@@ -306,6 +290,16 @@ describe('TermNoteTreeProvider', () => {
 });
 
 describe('package contributions for term notes', () => {
+  it('contributes the add-term-note command and term-notes view', () => {
+    const packageJsonPath = path.resolve(__dirname, '..', '..', 'package.json');
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+    const commands = packageJson.contributes.commands as Array<{ command: string }>;
+    const views = packageJson.contributes.views.groupBookmarks as Array<{ id: string }>;
+
+    expect(commands.some(item => item.command === 'groupBookmarks.addTermNoteFromSelection')).toBe(true);
+    expect(views.some(item => item.id === 'groupTermNotesView')).toBe(true);
+  });
+
   it('does not add an editor context menu entry for adding term notes from selection', () => {
     const packageJsonPath = path.resolve(__dirname, '..', '..', 'package.json');
     const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));

@@ -3,7 +3,6 @@ import { TermNoteManager } from '../core/termNoteManager';
 import { TermNoteGroupManager } from '../core/termNoteGroupManager';
 import { TermNoteRelationManager } from '../core/termNoteRelationManager';
 import { extractNormalizedTerm } from '../utils/termNoteUtils';
-import { TermNoteTreeProvider } from './termNoteTreeProvider';
 
 type TermNoteGroupQuickPickItem = vscode.QuickPickItem & {
     groupId?: string;
@@ -14,8 +13,7 @@ export class TermNoteCommandHandler {
     constructor(
         private readonly termNoteManager: TermNoteManager,
         private readonly termNoteGroupManager: TermNoteGroupManager,
-        private readonly termNoteRelationManager: TermNoteRelationManager,
-        private readonly treeProvider: TermNoteTreeProvider
+        private readonly termNoteRelationManager: TermNoteRelationManager
     ) { }
 
     registerCommands(context: vscode.ExtensionContext): void {
@@ -45,7 +43,6 @@ export class TermNoteCommandHandler {
 
             const note = await this.termNoteManager.createOrGetTermNote(selectedText);
             await this.termNoteRelationManager.addTermNoteToGroup(note.id, targetGroupId);
-            this.treeProvider.refresh();
         } catch (error) {
             vscode.window.showErrorMessage(
                 `Failed to add term note: ${error instanceof Error ? error.message : 'Unknown error'}`
