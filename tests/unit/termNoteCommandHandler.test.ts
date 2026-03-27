@@ -101,6 +101,7 @@ describe('TermNoteCommandHandler', () => {
     };
     const termNoteGroupManager = {
       getActiveTermNoteGroupId: vi.fn().mockReturnValue('group-1'),
+      getGroupById: vi.fn().mockReturnValue(makeGroup('group-1')),
     };
     const relationManager = {
       addTermNoteToGroup: vi.fn().mockResolvedValue(undefined),
@@ -128,12 +129,58 @@ describe('TermNoteCommandHandler', () => {
     expect(mockState.window.showErrorMessage).not.toHaveBeenCalled();
   });
 
+  it('falls back when the stored active term-note group is stale and avoids orphan notes', async () => {
+    const termNoteManager = {
+      createOrGetTermNote: vi.fn().mockResolvedValue({ id: 'note-1' }),
+    };
+    const validGroup = makeGroup('group-2', { displayName: '2. API Notes', name: 'API Notes' });
+    const termNoteGroupManager = {
+      getActiveTermNoteGroupId: vi.fn().mockReturnValue('stale-group'),
+      getGroupById: vi.fn((id: string) => (id === validGroup.id ? validGroup : undefined)),
+      getAllGroups: vi.fn().mockReturnValue([validGroup]),
+      createGroup: vi.fn(),
+      setActiveTermNoteGroupId: vi.fn().mockResolvedValue(undefined),
+    };
+    const relationManager = {
+      addTermNoteToGroup: vi.fn().mockResolvedValue(undefined),
+    };
+
+    mockState.window.activeTextEditor = {
+      document: {
+        getText: vi.fn().mockReturnValue('HTTP Client'),
+      },
+      selection: {
+        isEmpty: false,
+      },
+    };
+    mockState.window.showQuickPick.mockResolvedValue({
+      label: '2. API Notes',
+      groupId: 'group-2',
+    });
+
+    const handler = new TermNoteCommandHandler(
+      termNoteManager as any,
+      termNoteGroupManager as any,
+      relationManager as any
+    );
+
+    await handler.addTermNoteFromSelection();
+
+    expect(termNoteGroupManager.setActiveTermNoteGroupId).toHaveBeenNthCalledWith(1, undefined);
+    expect(mockState.window.showQuickPick).toHaveBeenCalledTimes(1);
+    expect(termNoteManager.createOrGetTermNote).toHaveBeenCalledTimes(1);
+    expect(termNoteManager.createOrGetTermNote).toHaveBeenCalledWith('HTTP Client');
+    expect(relationManager.addTermNoteToGroup).toHaveBeenCalledWith('note-1', 'group-2');
+    expect(termNoteGroupManager.createGroup).not.toHaveBeenCalled();
+  });
+
   it('selects an existing group when no active term-note group is set', async () => {
     const termNoteManager = {
       createOrGetTermNote: vi.fn().mockResolvedValue({ id: 'note-1' }),
     };
     const termNoteGroupManager = {
       getActiveTermNoteGroupId: vi.fn().mockReturnValue(undefined),
+      getGroupById: vi.fn(),
       getAllGroups: vi.fn().mockReturnValue([makeGroup('group-2', { displayName: '2. API Notes', name: 'API Notes' })]),
       createGroup: vi.fn(),
       setActiveTermNoteGroupId: vi.fn().mockResolvedValue(undefined),
@@ -176,6 +223,7 @@ describe('TermNoteCommandHandler', () => {
     };
     const termNoteGroupManager = {
       getActiveTermNoteGroupId: vi.fn().mockReturnValue(undefined),
+      getGroupById: vi.fn(),
       getAllGroups: vi.fn().mockReturnValue([]),
       createGroup: vi.fn().mockResolvedValue(makeGroup('group-new', { displayName: '1. Fresh Notes', name: 'Fresh Notes' })),
       setActiveTermNoteGroupId: vi.fn().mockResolvedValue(undefined),
@@ -220,6 +268,7 @@ describe('TermNoteCommandHandler', () => {
     };
     const termNoteGroupManager = {
       getActiveTermNoteGroupId: vi.fn().mockReturnValue(undefined),
+      getGroupById: vi.fn(),
       getAllGroups: vi.fn().mockReturnValue([]),
       createGroup: vi.fn().mockRejectedValue(new Error('create failed')),
       setActiveTermNoteGroupId: vi.fn(),

@@ -53,7 +53,12 @@ export class TermNoteCommandHandler {
     private async resolveTargetGroupId(): Promise<string | undefined> {
         const activeGroupId = this.termNoteGroupManager.getActiveTermNoteGroupId();
         if (activeGroupId) {
-            return activeGroupId;
+            const activeGroup = this.termNoteGroupManager.getGroupById(activeGroupId);
+            if (activeGroup) {
+                return activeGroup.id;
+            }
+
+            await this.termNoteGroupManager.setActiveTermNoteGroupId(undefined);
         }
 
         const groups = this.termNoteGroupManager.getAllGroups();
