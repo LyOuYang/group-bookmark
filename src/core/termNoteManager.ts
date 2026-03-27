@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { TermNote } from '../models/types';
-import { normalizeTerm } from '../utils/termNoteUtils';
+import { extractNormalizedTerm } from '../utils/termNoteUtils';
 import { DataManager } from '../data/dataManager';
 
 /**
@@ -13,7 +13,11 @@ export class TermNoteManager {
      * 创建或获取词条笔记
      */
     async createOrGetTermNote(term: string): Promise<TermNote> {
-        const normalizedTerm = normalizeTerm(term);
+        const normalizedTerm = extractNormalizedTerm(term);
+        if (!normalizedTerm) {
+            throw new Error('Term cannot be blank');
+        }
+
         const existing = this.getByNormalizedTerm(normalizedTerm);
 
         if (existing) {

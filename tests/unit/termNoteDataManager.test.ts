@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GroupColor, type TermNote, type TermNoteGroup, type TermNoteGroupRelation } from '../../src/models/types';
 import { TermNoteManager } from '../../src/core/termNoteManager';
+import { TermNoteGroupManager } from '../../src/core/termNoteGroupManager';
 import { TermNoteRelationManager } from '../../src/core/termNoteRelationManager';
 
 const mockState = vi.hoisted(() => ({
@@ -288,6 +289,14 @@ describe('term note data manager', () => {
     expect(manager.getActiveGroupId()).toBe('bookmark-group-1');
   });
 
+  it('rejects blank term creation', async () => {
+    const storage = createStorageDouble();
+    const dataManager = new DataManager(storage as any);
+    const manager = new TermNoteManager(dataManager);
+
+    await expect(manager.createOrGetTermNote('   ')).rejects.toThrow('Term cannot be blank');
+  });
+
   it('reuses an existing note when normalizedTerm matches', async () => {
     const storage = createStorageDouble();
     const dataManager = new DataManager(storage as any);
@@ -297,6 +306,78 @@ describe('term note data manager', () => {
     const second = await manager.createOrGetTermNote('user_table');
 
     expect(second.id).toBe(first.id);
+  });
+  it('returns the note for getByNormalizedTerm', async () => {
+    const storage = createStorageDouble();
+    const dataManager = new DataManager(storage as any);
+    const manager = new TermNoteManager(dataManager);
+
+    const note = await manager.createOrGetTermNote('User_Table');
+
+    expect(manager.getByNormalizedTerm('user_table')?.id).toBe(note.id);
+  });
+
+  it('updates content through the term note manager', async () => {
+    const storage = createStorageDouble();
+    const dataManager = new DataManager(storage as any);
+    const manager = new TermNoteManager(dataManager);
+
+    const note = await manager.createOrGetTermNote('User_Table');
+    await manager.updateContent(note.id, '# updated');
+
+    expect(dataManager.getTermNote(note.id)?.contentMarkdown).toBe('# updated');
+    expect(storage.saveTermNotes).toHaveBeenCalledTimes(2);
+  });
+
+  it('deletes a term note through the term note manager', async () => {
+    const storage = createStorageDouble();
+    const dataManager = new DataManager(storage as any);
+    const manager = new TermNoteManager(dataManager);
+
+    const note = await manager.createOrGetTermNote('User_Table');
+    await manager.deleteTermNote(note.id);
+
+    expect(dataManager.getTermNote(note.id)).toBeUndefined();
+    expect(storage.saveTermNotes).toHaveBeenCalledTimes(2);
+  });
+
+  it('creates, renames, deletes, and tracks active term-note groups', async () => {
+    const storage = createStorageDouble();
+    const dataManager = new DataManager(storage as any);
+    const groupManager = new TermNoteGroupManager(dataManager);
+
+    const group = await groupManager.createGroup('User Notes', GroupColor.Green);
+    expect(groupManager.getGroupById(group.id)?.displayName).toBe('1. User Notes');
+    expect(groupManager.getAllGroups()).toHaveLength(1);
+
+    await groupManager.renameGroup(group.id, 'Reference Notes');
+    expect(groupManager.getGroupById(group.id)?.name).toBe('Reference Notes');
+    expect(groupManager.getGroupById(group.id)?.displayName).toBe('1. Reference Notes');
+
+    await groupManager.setActiveTermNoteGroupId(group.id);
+    expect(groupManager.getActiveTermNoteGroupId()).toBe(group.id);
+
+    await groupManager.deleteGroup(group.id);
+    expect(groupManager.getGroupById(group.id)).toBeUndefined();
+    expect(groupManager.getAllGroups()).toHaveLength(0);
+  });
+
+  it('adds a term note to a group without relying on composite relation ids', async () => {
+    const storage = createStorageDouble({
+      termNotes: [makeTermNote('note-1', { term: 'User Table', normalizedTerm: 'user_table' })],
+      termNoteGroups: [makeTermNoteGroup('group-a', 0)],
+      termNoteRelations: [makeTermNoteRelation('relation-1', 'note-1', 'group-a', 0)],
+    });
+    const dataManager = new DataManager(storage as any);
+    const relationManager = new TermNoteRelationManager(dataManager);
+
+    await dataManager.loadAll();
+
+    const relation = await relationManager.addTermNoteToGroup('note-1', 'group-a');
+
+    expect(relation.id).toBe('relation-1');
+    expect(relationManager.getRelationsInGroup('group-a')).toHaveLength(1);
+    expect(storage.saveTermNoteRelations).toHaveBeenCalledTimes(0);
   });
 
   it('removes only the relation for remove-from-group', async () => {
@@ -314,6 +395,26 @@ describe('term note data manager', () => {
     await dataManager.loadAll();
     await relationManager.removeTermNoteFromGroup('note-1', 'group-a');
 
+    expect(relationManager.getRelationsInGroup('group-a')).toHaveLength(0);
     expect(relationManager.getRelationsInGroup('group-b')).toHaveLength(1);
+    expect(storage.saveTermNoteRelations).toHaveBeenCalledTimes(1);
+  });
+
+  it('deletes a term note everywhere', async () => {
+    const storage = createStorageDouble({
+      termNotes: [makeTermNote('note-1')],
+      termNoteGroups: [makeTermNoteGroup('group-a', 0)],
+      termNoteRelations: [makeTermNoteRelation('rel-a', 'note-1', 'group-a', 0)],
+    });
+    const dataManager = new DataManager(storage as any);
+    const relationManager = new TermNoteRelationManager(dataManager);
+
+    await dataManager.loadAll();
+    await relationManager.deleteTermNoteEverywhere('note-1');
+
+    expect(dataManager.getTermNote('note-1')).toBeUndefined();
+    expect(relationManager.getRelationsInGroup('group-a')).toHaveLength(0);
+    expect(storage.saveTermNotes).toHaveBeenCalledTimes(1);
+    expect(storage.saveTermNoteRelations).toHaveBeenCalledTimes(1);
   });
 });

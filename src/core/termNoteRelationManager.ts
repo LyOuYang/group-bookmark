@@ -30,7 +30,7 @@ export class TermNoteRelationManager {
         const relationsInGroup = this.getRelationsInGroup(groupId);
         const maxOrder = relationsInGroup.reduce((max, relation) => Math.max(max, relation.order), -1);
         const relation: TermNoteGroupRelation = {
-            id: `${noteId}_${groupId}`,
+            id: uuidv4(),
             termNoteId: noteId,
             groupId,
             order: maxOrder + 1,
@@ -73,6 +73,7 @@ export class TermNoteRelationManager {
      * 私有方法：查找关联
      */
     private findRelation(noteId: string, groupId: string): TermNoteGroupRelation | undefined {
-        return this.dataManager.getTermNoteRelation(`${noteId}_${groupId}`);
+        return this.dataManager.getAllTermNoteRelations()
+            .find(relation => relation.termNoteId === noteId && relation.groupId === groupId);
     }
 }
