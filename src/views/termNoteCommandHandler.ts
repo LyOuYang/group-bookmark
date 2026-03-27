@@ -37,12 +37,12 @@ export class TermNoteCommandHandler {
             return;
         }
 
-        const targetGroupId = await this.resolveTargetGroupId();
-        if (!targetGroupId) {
-            return;
-        }
-
         try {
+            const targetGroupId = await this.resolveTargetGroupId();
+            if (!targetGroupId) {
+                return;
+            }
+
             const note = await this.termNoteManager.createOrGetTermNote(selectedText);
             await this.termNoteRelationManager.addTermNoteToGroup(note.id, targetGroupId);
             this.treeProvider.refresh();

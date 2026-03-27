@@ -225,6 +225,51 @@ describe('TermNoteCommandHandler', () => {
     expect(termNoteManager.createOrGetTermNote).toHaveBeenCalledWith('HTTP Client');
     expect(relationManager.addTermNoteToGroup).toHaveBeenCalledWith('note-1', 'group-new');
   });
+
+  it('handles create-group failures gracefully when resolving the target group', async () => {
+    const termNoteManager = {
+      createOrGetTermNote: vi.fn(),
+    };
+    const termNoteGroupManager = {
+      getActiveTermNoteGroupId: vi.fn().mockReturnValue(undefined),
+      getAllGroups: vi.fn().mockReturnValue([]),
+      createGroup: vi.fn().mockRejectedValue(new Error('create failed')),
+      setActiveTermNoteGroupId: vi.fn(),
+    };
+    const relationManager = {
+      addTermNoteToGroup: vi.fn(),
+    };
+    const treeProvider = {
+      refresh: vi.fn(),
+    };
+
+    mockState.window.activeTextEditor = {
+      document: {
+        getText: vi.fn().mockReturnValue('HTTP Client'),
+      },
+      selection: {
+        isEmpty: false,
+      },
+    };
+    mockState.window.showQuickPick.mockResolvedValue({
+      label: 'Create New Group...',
+      action: 'create',
+    });
+    mockState.window.showInputBox.mockResolvedValue('Fresh Notes');
+
+    const handler = new TermNoteCommandHandler(
+      termNoteManager as any,
+      termNoteGroupManager as any,
+      relationManager as any,
+      treeProvider as any
+    );
+
+    await expect(handler.addTermNoteFromSelection()).resolves.toBeUndefined();
+
+    expect(mockState.window.showErrorMessage).toHaveBeenCalledWith('Failed to add term note: create failed');
+    expect(termNoteManager.createOrGetTermNote).not.toHaveBeenCalled();
+    expect(relationManager.addTermNoteToGroup).not.toHaveBeenCalled();
+  });
 });
 
 describe('TermNoteTreeProvider', () => {
