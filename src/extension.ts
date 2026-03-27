@@ -14,6 +14,7 @@ import { TermNoteCommandHandler } from './views/termNoteCommandHandler';
 import { DecorationManager } from './views/decorationManager';
 import { BookmarkCodeLensProvider } from './views/codeLensProvider';
 import { ImportExportService } from './services/importExportService';
+import { TermNoteDocumentService } from './services/termNoteDocumentService';
 import { PathUtils } from './utils/pathUtils';
 import { Logger } from './utils/logger';
 
@@ -39,6 +40,10 @@ export async function activate(context: vscode.ExtensionContext) {
         const termNoteManager = new TermNoteManager(dataManager);
         const termNoteGroupManager = new TermNoteGroupManager(dataManager);
         const termNoteRelationManager = new TermNoteRelationManager(dataManager);
+        const termNoteDocumentService = new TermNoteDocumentService(
+            (noteId) => dataManager.getTermNote(noteId),
+            (noteId, content) => termNoteManager.updateContent(noteId, content)
+        );
 
         // 初始化 TreeView
         const treeProvider = new BookmarkTreeProvider(dataManager, groupManager, relationManager);
@@ -61,6 +66,13 @@ export async function activate(context: vscode.ExtensionContext) {
         });
 
         context.subscriptions.push(termNoteTreeView);
+        context.subscriptions.push(
+            vscode.workspace.registerFileSystemProvider(
+                TermNoteDocumentService.scheme,
+                termNoteDocumentService,
+                { isCaseSensitive: true, isReadonly: false }
+            )
+        );
 
         // 初始化命令处理器
         const commandHandler = new CommandHandler(
@@ -75,7 +87,8 @@ export async function activate(context: vscode.ExtensionContext) {
         const termNoteCommandHandler = new TermNoteCommandHandler(
             termNoteManager,
             termNoteGroupManager,
-            termNoteRelationManager
+            termNoteRelationManager,
+            termNoteDocumentService
         );
         termNoteCommandHandler.registerCommands(context);
 

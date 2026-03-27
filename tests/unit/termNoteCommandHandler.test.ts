@@ -2,6 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GroupColor, type TermNote, type TermNoteGroup, type TermNoteGroupRelation } from '../../src/models/types';
+import { TermNoteDocumentService } from '../../src/services/termNoteDocumentService';
 import { TermNoteCommandHandler } from '../../src/views/termNoteCommandHandler';
 import { TermNoteTreeProvider } from '../../src/views/termNoteTreeProvider';
 
@@ -12,12 +13,23 @@ const mockState = vi.hoisted(() => ({
     showInputBox: vi.fn().mockResolvedValue(undefined),
     showWarningMessage: vi.fn().mockResolvedValue(undefined),
     showErrorMessage: vi.fn().mockResolvedValue(undefined),
+    showTextDocument: vi.fn().mockResolvedValue(undefined),
   },
   commands: {
     registerCommand: vi.fn((_command: string, handler: (...args: any[]) => any) => ({
       dispose: vi.fn(),
       handler,
     })),
+  },
+  workspace: {
+    fs: {
+      isWritableFileSystem: vi.fn().mockReturnValue(true),
+    },
+    openTextDocument: vi.fn().mockImplementation(async (uri: any) => ({
+      uri,
+      getText: vi.fn().mockReturnValue(''),
+    })),
+    registerFileSystemProvider: vi.fn().mockReturnValue({ dispose: vi.fn() }),
   },
 }));
 
@@ -41,9 +53,47 @@ vi.mock('vscode', () => {
     }
   }
 
+  class MockDisposable {
+    constructor(private readonly fn: () => void = () => {}) {}
+    dispose() {
+      this.fn();
+    }
+  }
+
+  class MockUri {
+    readonly scheme: string;
+    readonly path: string;
+
+    constructor(scheme: string, path: string) {
+      this.scheme = scheme;
+      this.path = path;
+    }
+
+    toString() {
+      return `${this.scheme}:${this.path}`;
+    }
+
+    static parse(value: string) {
+      const match = /^([^:]+):(.*)$/.exec(value);
+      if (!match) {
+        throw new Error(`Invalid URI: ${value}`);
+      }
+
+      return new MockUri(match[1], match[2]);
+    }
+  }
+
   return {
     EventEmitter: MockEventEmitter,
     TreeItem: MockTreeItem,
+    Disposable: MockDisposable,
+    Uri: MockUri,
+    FileType: {
+      File: 1,
+    },
+    FileChangeType: {
+      Changed: 2,
+    },
     TreeItemCollapsibleState: {
       None: 0,
       Collapsed: 1,
@@ -51,6 +101,7 @@ vi.mock('vscode', () => {
     },
     window: mockState.window,
     commands: mockState.commands,
+    workspace: mockState.workspace,
   };
 });
 
@@ -107,9 +158,46 @@ function createEventHook() {
 afterEach(() => {
   mockState.window.activeTextEditor = undefined;
   vi.clearAllMocks();
+  mockState.workspace.fs.isWritableFileSystem.mockReturnValue(true);
 });
 
 describe('TermNoteCommandHandler', () => {
+  it('opens the custom term-note document after creating or finding the note', async () => {
+    const termNoteManager = {
+      createOrGetTermNote: vi.fn().mockResolvedValue({ id: 'note-1' }),
+    };
+    const termNoteGroupManager = {
+      getActiveTermNoteGroupId: vi.fn().mockReturnValue('group-1'),
+      getGroupById: vi.fn().mockReturnValue(makeGroup('group-1')),
+    };
+    const relationManager = {
+      addTermNoteToGroup: vi.fn().mockResolvedValue(undefined),
+    };
+    const documentService = {
+      openNoteDocument: vi.fn().mockResolvedValue(undefined),
+    };
+
+    mockState.window.activeTextEditor = {
+      document: {
+        getText: vi.fn().mockReturnValue('User_Table'),
+      },
+      selection: {
+        isEmpty: false,
+      },
+    };
+
+    const handler = new TermNoteCommandHandler(
+      termNoteManager as any,
+      termNoteGroupManager as any,
+      relationManager as any,
+      documentService as any
+    );
+
+    await handler.addTermNoteFromSelection();
+
+    expect(documentService.openNoteDocument).toHaveBeenCalledWith('note-1');
+  });
+
   it('creates a new note from selection using the original selected text and assigns it to the active group', async () => {
     const termNoteManager = {
       createOrGetTermNote: vi.fn().mockResolvedValue({ id: 'note-1' }),
@@ -134,7 +222,8 @@ describe('TermNoteCommandHandler', () => {
     const handler = new TermNoteCommandHandler(
       termNoteManager as any,
       termNoteGroupManager as any,
-      relationManager as any
+      relationManager as any,
+      { openNoteDocument: vi.fn().mockResolvedValue(undefined) } as any
     );
 
     await handler.addTermNoteFromSelection();
@@ -176,7 +265,8 @@ describe('TermNoteCommandHandler', () => {
     const handler = new TermNoteCommandHandler(
       termNoteManager as any,
       termNoteGroupManager as any,
-      relationManager as any
+      relationManager as any,
+      { openNoteDocument: vi.fn().mockResolvedValue(undefined) } as any
     );
 
     await handler.addTermNoteFromSelection();
@@ -220,7 +310,8 @@ describe('TermNoteCommandHandler', () => {
     const handler = new TermNoteCommandHandler(
       termNoteManager as any,
       termNoteGroupManager as any,
-      relationManager as any
+      relationManager as any,
+      { openNoteDocument: vi.fn().mockResolvedValue(undefined) } as any
     );
 
     await handler.addTermNoteFromSelection();
@@ -264,7 +355,8 @@ describe('TermNoteCommandHandler', () => {
     const handler = new TermNoteCommandHandler(
       termNoteManager as any,
       termNoteGroupManager as any,
-      relationManager as any
+      relationManager as any,
+      { openNoteDocument: vi.fn().mockResolvedValue(undefined) } as any
     );
 
     await handler.addTermNoteFromSelection();
@@ -309,7 +401,8 @@ describe('TermNoteCommandHandler', () => {
     const handler = new TermNoteCommandHandler(
       termNoteManager as any,
       termNoteGroupManager as any,
-      relationManager as any
+      relationManager as any,
+      { openNoteDocument: vi.fn().mockResolvedValue(undefined) } as any
     );
 
     await expect(handler.addTermNoteFromSelection()).resolves.toBeUndefined();
@@ -386,6 +479,41 @@ describe('TermNoteTreeProvider', () => {
     termNoteRelationsEvent.fire();
 
     expect(refreshSpy).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe('TermNoteDocumentService', () => {
+  it('builds the custom markdown URI for a note id', () => {
+    const service = new TermNoteDocumentService(
+      vi.fn(),
+      vi.fn()
+    );
+
+    expect(service.getUri('note-1').toString()).toBe('groupbookmarks-term-note:/note-1.md');
+  });
+
+  it('opens a note by using the custom markdown URI', async () => {
+    const service = new TermNoteDocumentService(
+      vi.fn().mockReturnValue(makeNote('note-1')),
+      vi.fn()
+    );
+
+    await service.openNoteDocument('note-1');
+
+    expect(mockState.workspace.openTextDocument).toHaveBeenCalledWith(service.getUri('note-1'));
+    expect(mockState.window.showTextDocument).toHaveBeenCalledTimes(1);
+  });
+
+  it('writes saved markdown back through termNoteManager.updateContent', async () => {
+    const updateContent = vi.fn().mockResolvedValue(undefined);
+    const service = new TermNoteDocumentService(
+      vi.fn().mockReturnValue(makeNote('note-1')),
+      updateContent
+    );
+
+    await service.writeFile(service.getUri('note-1'), Buffer.from('# User table'), { create: false, overwrite: true });
+
+    expect(updateContent).toHaveBeenCalledWith('note-1', '# User table');
   });
 });
 
