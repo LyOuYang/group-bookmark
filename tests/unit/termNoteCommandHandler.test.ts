@@ -89,6 +89,21 @@ function makeRelation(id: string, noteId: string, groupId: string, overrides: Pa
   };
 }
 
+function createEventHook() {
+  const listeners: Array<() => void> = [];
+  const subscribe = vi.fn((listener: () => void) => {
+    listeners.push(listener);
+    return { dispose: vi.fn() };
+  });
+
+  return {
+    subscribe,
+    fire: () => {
+      listeners.forEach(listener => listener());
+    },
+  };
+}
+
 afterEach(() => {
   mockState.window.activeTextEditor = undefined;
   vi.clearAllMocks();
@@ -335,6 +350,42 @@ describe('TermNoteTreeProvider', () => {
     expect(items[0].contextValue).toBe('term-note-group');
     expect(childItems[0].contextValue).toBe('term-note');
     expect(childItems[0].label).toBe('User Table');
+  });
+
+  it('refreshes when term-note data manager events fire', () => {
+    const termNotesEvent = createEventHook();
+    const termNoteGroupsEvent = createEventHook();
+    const termNoteRelationsEvent = createEventHook();
+    const dataManager = {
+      onDidChangeTermNotes: termNotesEvent.subscribe,
+      onDidChangeTermNoteGroups: termNoteGroupsEvent.subscribe,
+      onDidChangeTermNoteRelations: termNoteRelationsEvent.subscribe,
+      getTermNote: vi.fn(),
+    };
+    const termNoteGroupManager = {
+      getAllGroups: vi.fn().mockReturnValue([]),
+      getActiveTermNoteGroupId: vi.fn(),
+    };
+    const relationManager = {
+      getRelationsInGroup: vi.fn().mockReturnValue([]),
+    };
+
+    const provider = new TermNoteTreeProvider(
+      dataManager as any,
+      termNoteGroupManager as any,
+      relationManager as any
+    );
+    const refreshSpy = vi.spyOn(provider, 'refresh');
+
+    expect(dataManager.onDidChangeTermNotes).toHaveBeenCalledTimes(1);
+    expect(dataManager.onDidChangeTermNoteGroups).toHaveBeenCalledTimes(1);
+    expect(dataManager.onDidChangeTermNoteRelations).toHaveBeenCalledTimes(1);
+
+    termNotesEvent.fire();
+    termNoteGroupsEvent.fire();
+    termNoteRelationsEvent.fire();
+
+    expect(refreshSpy).toHaveBeenCalledTimes(3);
   });
 });
 
