@@ -4,8 +4,13 @@ import { DataManager } from './data/dataManager';
 import { BookmarkManager } from './core/bookmarkManager';
 import { GroupManager } from './core/groupManager';
 import { RelationManager } from './core/relationManager';
+import { TermNoteManager } from './core/termNoteManager';
+import { TermNoteGroupManager } from './core/termNoteGroupManager';
+import { TermNoteRelationManager } from './core/termNoteRelationManager';
 import { BookmarkTreeProvider } from './views/treeProvider';
 import { CommandHandler } from './views/commandHandler';
+import { TermNoteTreeProvider } from './views/termNoteTreeProvider';
+import { TermNoteCommandHandler } from './views/termNoteCommandHandler';
 import { DecorationManager } from './views/decorationManager';
 import { BookmarkCodeLensProvider } from './views/codeLensProvider';
 import { ImportExportService } from './services/importExportService';
@@ -31,6 +36,9 @@ export async function activate(context: vscode.ExtensionContext) {
         const bookmarkManager = new BookmarkManager(dataManager);
         const groupManager = new GroupManager(dataManager);
         const relationManager = new RelationManager(dataManager);
+        const termNoteManager = new TermNoteManager(dataManager);
+        const termNoteGroupManager = new TermNoteGroupManager(dataManager);
+        const termNoteRelationManager = new TermNoteRelationManager(dataManager);
 
         // 初始化 TreeView
         const treeProvider = new BookmarkTreeProvider(dataManager, groupManager, relationManager);
@@ -42,6 +50,19 @@ export async function activate(context: vscode.ExtensionContext) {
 
         context.subscriptions.push(treeView);
 
+        const termNoteTreeProvider = new TermNoteTreeProvider(
+            dataManager,
+            termNoteGroupManager,
+            termNoteRelationManager,
+            termNoteManager
+        );
+        const termNoteTreeView = vscode.window.createTreeView('groupTermNotesView', {
+            treeDataProvider: termNoteTreeProvider,
+            showCollapseAll: true
+        });
+
+        context.subscriptions.push(termNoteTreeView);
+
         // 初始化命令处理器
         const commandHandler = new CommandHandler(
             bookmarkManager,
@@ -51,6 +72,14 @@ export async function activate(context: vscode.ExtensionContext) {
         );
 
         commandHandler.registerCommands(context);
+
+        const termNoteCommandHandler = new TermNoteCommandHandler(
+            termNoteManager,
+            termNoteGroupManager,
+            termNoteRelationManager,
+            termNoteTreeProvider
+        );
+        termNoteCommandHandler.registerCommands(context);
 
         // 初始化 DecorationManager
         const decorationManager = new DecorationManager(dataManager, groupManager, relationManager);

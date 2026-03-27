@@ -1,0 +1,92 @@
+import * as vscode from 'vscode';
+import { DataManager } from '../data/dataManager';
+import { TermNoteGroupManager } from '../core/termNoteGroupManager';
+import { TermNoteRelationManager } from '../core/termNoteRelationManager';
+import { TermNoteManager } from '../core/termNoteManager';
+
+export type TermNoteTreeItemType = 'term-note-group' | 'term-note';
+
+export class TermNoteTreeItem extends vscode.TreeItem {
+    constructor(
+        public readonly type: TermNoteTreeItemType,
+        public readonly dataId: string,
+        label: string,
+        collapsibleState: vscode.TreeItemCollapsibleState
+    ) {
+        super(label, collapsibleState);
+        this.contextValue = type;
+    }
+}
+
+export class TermNoteTreeProvider implements vscode.TreeDataProvider<TermNoteTreeItem> {
+    private readonly _onDidChangeTreeData = new vscode.EventEmitter<TermNoteTreeItem | undefined | null | void>();
+    readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
+
+    constructor(
+        private readonly dataManager: DataManager,
+        private readonly termNoteGroupManager: TermNoteGroupManager,
+        private readonly termNoteRelationManager: TermNoteRelationManager,
+        private readonly _termNoteManager: TermNoteManager
+    ) {
+        this.dataManager.onDidChangeTermNotes(() => this.refresh());
+        this.dataManager.onDidChangeTermNoteGroups(() => this.refresh());
+        this.dataManager.onDidChangeTermNoteRelations(() => this.refresh());
+    }
+
+    refresh(): void {
+        this._onDidChangeTreeData.fire();
+    }
+
+    getTreeItem(element: TermNoteTreeItem): vscode.TreeItem {
+        return element;
+    }
+
+    getChildren(element?: TermNoteTreeItem): TermNoteTreeItem[] {
+        if (!element) {
+            return this.getGroupItems();
+        }
+
+        if (element.type === 'term-note-group') {
+            return this.getNoteItems(element.dataId);
+        }
+
+        return [];
+    }
+
+    private getGroupItems(): TermNoteTreeItem[] {
+        const activeGroupId = this.termNoteGroupManager.getActiveTermNoteGroupId();
+
+        return this.termNoteGroupManager.getAllGroups().map(group => {
+            const item = new TermNoteTreeItem(
+                'term-note-group',
+                group.id,
+                group.displayName,
+                vscode.TreeItemCollapsibleState.Collapsed
+            );
+
+            if (group.id === activeGroupId) {
+                item.description = 'Active';
+            }
+
+            return item;
+        });
+    }
+
+    private getNoteItems(groupId: string): TermNoteTreeItem[] {
+        return this.termNoteRelationManager.getRelationsInGroup(groupId)
+            .map(relation => {
+                const note = this.dataManager.getTermNote(relation.termNoteId);
+                if (!note) {
+                    return null;
+                }
+
+                return new TermNoteTreeItem(
+                    'term-note',
+                    note.id,
+                    note.term,
+                    vscode.TreeItemCollapsibleState.None
+                );
+            })
+            .filter((item): item is TermNoteTreeItem => item !== null);
+    }
+}

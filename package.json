@@ -133,6 +133,11 @@
         "title": "Delete Bookmark",
         "category": "Group Bookmarks",
         "icon": "$(trash)"
+      },
+      {
+        "command": "groupBookmarks.addTermNoteFromSelection",
+        "title": "Add Note for Selection",
+        "category": "Group Bookmarks"
       }
     ],
     "keybindings": [
@@ -171,6 +176,10 @@
         {
           "id": "groupBookmarksView",
           "name": "Bookmarks"
+        },
+        {
+          "id": "groupTermNotesView",
+          "name": "Term Notes"
         }
       ]
     },
@@ -180,6 +189,11 @@
           "command": "groupBookmarks.addBookmarkMenu",
           "group": "9_bookmarks@1",
           "when": "editorTextFocus"
+        },
+        {
+          "command": "groupBookmarks.addTermNoteFromSelection",
+          "group": "9_bookmarks@2",
+          "when": "editorTextFocus && editorHasSelection"
         }
       ],
       "view/title": [
