@@ -3,6 +3,8 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GroupColor, type TermNote, type TermNoteGroup, type TermNoteGroupRelation } from '../../src/models/types';
+import { TermNoteManager } from '../../src/core/termNoteManager';
+import { TermNoteRelationManager } from '../../src/core/termNoteRelationManager';
 
 const mockState = vi.hoisted(() => ({
   workspaceFolders: [] as Array<{ uri: { fsPath: string }; name: string }>,
@@ -284,5 +286,34 @@ describe('term note data manager', () => {
     await manager.setActiveGroupId('bookmark-group-1');
 
     expect(manager.getActiveGroupId()).toBe('bookmark-group-1');
+  });
+
+  it('reuses an existing note when normalizedTerm matches', async () => {
+    const storage = createStorageDouble();
+    const dataManager = new DataManager(storage as any);
+    const manager = new TermNoteManager(dataManager);
+
+    const first = await manager.createOrGetTermNote('User_Table');
+    const second = await manager.createOrGetTermNote('user_table');
+
+    expect(second.id).toBe(first.id);
+  });
+
+  it('removes only the relation for remove-from-group', async () => {
+    const storage = createStorageDouble({
+      termNotes: [makeTermNote('note-1')],
+      termNoteGroups: [makeTermNoteGroup('group-a', 0), makeTermNoteGroup('group-b', 1)],
+      termNoteRelations: [
+        makeTermNoteRelation('rel-a', 'note-1', 'group-a', 0),
+        makeTermNoteRelation('rel-b', 'note-1', 'group-b', 0),
+      ],
+    });
+    const dataManager = new DataManager(storage as any);
+    const relationManager = new TermNoteRelationManager(dataManager);
+
+    await dataManager.loadAll();
+    await relationManager.removeTermNoteFromGroup('note-1', 'group-a');
+
+    expect(relationManager.getRelationsInGroup('group-b')).toHaveLength(1);
   });
 });
