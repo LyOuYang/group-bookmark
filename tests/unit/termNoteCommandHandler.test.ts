@@ -8,6 +8,8 @@ import { TermNoteTreeProvider } from '../../src/views/termNoteTreeProvider';
 const mockState = vi.hoisted(() => ({
   window: {
     activeTextEditor: undefined as any,
+    showQuickPick: vi.fn().mockResolvedValue(undefined),
+    showInputBox: vi.fn().mockResolvedValue(undefined),
     showWarningMessage: vi.fn().mockResolvedValue(undefined),
     showErrorMessage: vi.fn().mockResolvedValue(undefined),
   },
@@ -93,7 +95,7 @@ afterEach(() => {
 });
 
 describe('TermNoteCommandHandler', () => {
-  it('creates a new note from selection and assigns it to the active group', async () => {
+  it('creates a new note from selection using the original selected text and assigns it to the active group', async () => {
     const termNoteManager = {
       createOrGetTermNote: vi.fn().mockResolvedValue({ id: 'note-1' }),
     };
@@ -109,7 +111,7 @@ describe('TermNoteCommandHandler', () => {
 
     mockState.window.activeTextEditor = {
       document: {
-        getText: vi.fn().mockReturnValue('user_table'),
+        getText: vi.fn().mockReturnValue('User_Table'),
       },
       selection: {
         isEmpty: false,
@@ -125,9 +127,103 @@ describe('TermNoteCommandHandler', () => {
 
     await handler.addTermNoteFromSelection();
 
-    expect(termNoteManager.createOrGetTermNote).toHaveBeenCalledWith('user_table');
+    expect(termNoteManager.createOrGetTermNote).toHaveBeenCalledWith('User_Table');
     expect(relationManager.addTermNoteToGroup).toHaveBeenCalledWith('note-1', 'group-1');
     expect(treeProvider.refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('selects an existing group when no active term-note group is set', async () => {
+    const termNoteManager = {
+      createOrGetTermNote: vi.fn().mockResolvedValue({ id: 'note-1' }),
+    };
+    const termNoteGroupManager = {
+      getActiveTermNoteGroupId: vi.fn().mockReturnValue(undefined),
+      getAllGroups: vi.fn().mockReturnValue([makeGroup('group-2', { displayName: '2. API Notes', name: 'API Notes' })]),
+      createGroup: vi.fn(),
+      setActiveTermNoteGroupId: vi.fn().mockResolvedValue(undefined),
+    };
+    const relationManager = {
+      addTermNoteToGroup: vi.fn().mockResolvedValue(undefined),
+    };
+    const treeProvider = {
+      refresh: vi.fn(),
+    };
+
+    mockState.window.activeTextEditor = {
+      document: {
+        getText: vi.fn().mockReturnValue('User Table'),
+      },
+      selection: {
+        isEmpty: false,
+      },
+    };
+    mockState.window.showQuickPick.mockResolvedValue({
+      label: '2. API Notes',
+      groupId: 'group-2',
+    });
+
+    const handler = new TermNoteCommandHandler(
+      termNoteManager as any,
+      termNoteGroupManager as any,
+      relationManager as any,
+      treeProvider as any
+    );
+
+    await handler.addTermNoteFromSelection();
+
+    expect(mockState.window.showQuickPick).toHaveBeenCalledTimes(1);
+    expect(termNoteGroupManager.setActiveTermNoteGroupId).toHaveBeenCalledWith('group-2');
+    expect(termNoteManager.createOrGetTermNote).toHaveBeenCalledWith('User Table');
+    expect(relationManager.addTermNoteToGroup).toHaveBeenCalledWith('note-1', 'group-2');
+    expect(termNoteGroupManager.createGroup).not.toHaveBeenCalled();
+  });
+
+  it('creates a group when no active term-note group exists and the user chooses create', async () => {
+    const termNoteManager = {
+      createOrGetTermNote: vi.fn().mockResolvedValue({ id: 'note-1' }),
+    };
+    const termNoteGroupManager = {
+      getActiveTermNoteGroupId: vi.fn().mockReturnValue(undefined),
+      getAllGroups: vi.fn().mockReturnValue([]),
+      createGroup: vi.fn().mockResolvedValue(makeGroup('group-new', { displayName: '1. Fresh Notes', name: 'Fresh Notes' })),
+      setActiveTermNoteGroupId: vi.fn().mockResolvedValue(undefined),
+    };
+    const relationManager = {
+      addTermNoteToGroup: vi.fn().mockResolvedValue(undefined),
+    };
+    const treeProvider = {
+      refresh: vi.fn(),
+    };
+
+    mockState.window.activeTextEditor = {
+      document: {
+        getText: vi.fn().mockReturnValue('HTTP Client'),
+      },
+      selection: {
+        isEmpty: false,
+      },
+    };
+    mockState.window.showQuickPick.mockResolvedValue({
+      label: 'Create New Group...',
+      action: 'create',
+    });
+    mockState.window.showInputBox.mockResolvedValue('Fresh Notes');
+
+    const handler = new TermNoteCommandHandler(
+      termNoteManager as any,
+      termNoteGroupManager as any,
+      relationManager as any,
+      treeProvider as any
+    );
+
+    await handler.addTermNoteFromSelection();
+
+    expect(mockState.window.showQuickPick).toHaveBeenCalledTimes(1);
+    expect(mockState.window.showInputBox).toHaveBeenCalledTimes(1);
+    expect(termNoteGroupManager.createGroup).toHaveBeenCalledWith('Fresh Notes');
+    expect(termNoteGroupManager.setActiveTermNoteGroupId).toHaveBeenCalledWith('group-new');
+    expect(termNoteManager.createOrGetTermNote).toHaveBeenCalledWith('HTTP Client');
+    expect(relationManager.addTermNoteToGroup).toHaveBeenCalledWith('note-1', 'group-new');
   });
 });
 
@@ -149,13 +245,10 @@ describe('TermNoteTreeProvider', () => {
     const relationManager = {
       getRelationsInGroup: vi.fn((groupId: string) => (groupId === group.id ? [relation] : [])),
     };
-    const termNoteManager = {};
-
     const provider = new TermNoteTreeProvider(
       dataManager as any,
       termNoteGroupManager as any,
-      relationManager as any,
-      termNoteManager as any
+      relationManager as any
     );
 
     const items = provider.getChildren();

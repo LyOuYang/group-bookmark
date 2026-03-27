@@ -2,7 +2,6 @@ import * as vscode from 'vscode';
 import { DataManager } from '../data/dataManager';
 import { TermNoteGroupManager } from '../core/termNoteGroupManager';
 import { TermNoteRelationManager } from '../core/termNoteRelationManager';
-import { TermNoteManager } from '../core/termNoteManager';
 
 export type TermNoteTreeItemType = 'term-note-group' | 'term-note';
 
@@ -25,8 +24,7 @@ export class TermNoteTreeProvider implements vscode.TreeDataProvider<TermNoteTre
     constructor(
         private readonly dataManager: DataManager,
         private readonly termNoteGroupManager: TermNoteGroupManager,
-        private readonly termNoteRelationManager: TermNoteRelationManager,
-        private readonly _termNoteManager: TermNoteManager
+        private readonly termNoteRelationManager: TermNoteRelationManager
     ) {
         this.dataManager.onDidChangeTermNotes(() => this.refresh());
         this.dataManager.onDidChangeTermNoteGroups(() => this.refresh());

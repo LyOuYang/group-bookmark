@@ -53,8 +53,7 @@ export async function activate(context: vscode.ExtensionContext) {
         const termNoteTreeProvider = new TermNoteTreeProvider(
             dataManager,
             termNoteGroupManager,
-            termNoteRelationManager,
-            termNoteManager
+            termNoteRelationManager
         );
         const termNoteTreeView = vscode.window.createTreeView('groupTermNotesView', {
             treeDataProvider: termNoteTreeProvider,
