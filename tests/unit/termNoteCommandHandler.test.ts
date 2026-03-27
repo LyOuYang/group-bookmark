@@ -1,3 +1,5 @@
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GroupColor, type TermNote, type TermNoteGroup, type TermNoteGroupRelation } from '../../src/models/types';
 import { TermNoteCommandHandler } from '../../src/views/termNoteCommandHandler';
@@ -162,5 +164,15 @@ describe('TermNoteTreeProvider', () => {
     expect(items[0].contextValue).toBe('term-note-group');
     expect(childItems[0].contextValue).toBe('term-note');
     expect(childItems[0].label).toBe('User Table');
+  });
+});
+
+describe('package contributions for term notes', () => {
+  it('does not add an editor context menu entry for adding term notes from selection', () => {
+    const packageJsonPath = path.resolve(__dirname, '..', '..', 'package.json');
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+    const editorContextMenus = packageJson.contributes.menus['editor/context'] as Array<{ command: string }>;
+
+    expect(editorContextMenus.some(item => item.command === 'groupBookmarks.addTermNoteFromSelection')).toBe(false);
   });
 });
