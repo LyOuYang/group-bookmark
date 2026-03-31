@@ -1,12 +1,12 @@
 import * as vscode from 'vscode';
-import { TermNote } from '../models/types';
+import { KeyNote } from '../models/types';
 
-const TERM_NOTE_DOCUMENT_SCHEME = 'groupbookmarks-term-note';
+const TERM_NOTE_DOCUMENT_SCHEME = 'groupbookmarks-key-note';
 
-type GetTermNoteById = (noteId: string) => TermNote | undefined;
-type UpdateTermNoteContent = (noteId: string, content: string) => Promise<void>;
+type GetKeyNoteById = (noteId: string) => KeyNote | undefined;
+type UpdateKeyNoteContent = (noteId: string, content: string) => Promise<void>;
 
-export class TermNoteDocumentService implements vscode.FileSystemProvider {
+export class KeyNoteDocumentService implements vscode.FileSystemProvider {
     static readonly scheme = TERM_NOTE_DOCUMENT_SCHEME;
 
     private readonly onDidChangeFileEmitter = new vscode.EventEmitter<vscode.FileChangeEvent[]>();
@@ -14,8 +14,8 @@ export class TermNoteDocumentService implements vscode.FileSystemProvider {
     readonly onDidChangeFile = this.onDidChangeFileEmitter.event;
 
     constructor(
-        private readonly getTermNoteById: GetTermNoteById,
-        private readonly updateTermNoteContent: UpdateTermNoteContent
+        private readonly getKeyNoteById: GetKeyNoteById,
+        private readonly updateKeyNoteContent: UpdateKeyNoteContent
     ) { }
 
     getUri(noteId: string): vscode.Uri {
@@ -32,7 +32,7 @@ export class TermNoteDocumentService implements vscode.FileSystemProvider {
     }
 
     stat(uri: vscode.Uri): vscode.FileStat {
-        const note = this.requireTermNote(uri);
+        const note = this.requireKeyNote(uri);
         return {
             type: vscode.FileType.File,
             ctime: note.createdAt,
@@ -46,11 +46,11 @@ export class TermNoteDocumentService implements vscode.FileSystemProvider {
     }
 
     createDirectory(): void {
-        throw new Error('Directories are not supported for term notes');
+        throw new Error('Directories are not supported for key notes');
     }
 
     readFile(uri: vscode.Uri): Uint8Array {
-        const note = this.requireTermNote(uri);
+        const note = this.requireKeyNote(uri);
         return Buffer.from(note.contentMarkdown, 'utf8');
     }
 
@@ -58,22 +58,22 @@ export class TermNoteDocumentService implements vscode.FileSystemProvider {
         void _options;
         const noteId = this.getNoteId(uri);
         const markdown = Buffer.from(content).toString('utf8');
-        await this.updateTermNoteContent(noteId, markdown);
+        await this.updateKeyNoteContent(noteId, markdown);
         this.onDidChangeFileEmitter.fire([{ type: vscode.FileChangeType.Changed, uri }]);
     }
 
     delete(): void {
-        throw new Error('Deleting term note documents is not supported');
+        throw new Error('Deleting key note documents is not supported');
     }
 
     rename(): void {
-        throw new Error('Renaming term note documents is not supported');
+        throw new Error('Renaming key note documents is not supported');
     }
 
-    private requireTermNote(uri: vscode.Uri): TermNote {
-        const note = this.getTermNoteById(this.getNoteId(uri));
+    private requireKeyNote(uri: vscode.Uri): KeyNote {
+        const note = this.getKeyNoteById(this.getNoteId(uri));
         if (!note) {
-            throw new Error(`Term note not found: ${uri.toString()}`);
+            throw new Error(`Key note not found: ${uri.toString()}`);
         }
 
         return note;

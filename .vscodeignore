@@ -4,6 +4,9 @@ src/**
 .gitignore
 .git/**
 .github/**
+.worktrees/**
+.agent/**
+*.vsix
 **/*.map
 **/*.ts
 *.md

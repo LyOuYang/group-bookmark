@@ -10,12 +10,12 @@ import {
     RelationsData,
     ExportData,
     DATA_VERSION,
-    TermNote,
-    TermNoteGroup,
-    TermNoteGroupRelation,
-    TermNotesData,
-    TermNoteGroupsData,
-    TermNoteRelationsData
+    KeyNote,
+    KeyNoteGroup,
+    KeyNoteGroupRelation,
+    KeyNotesData,
+    KeyNoteGroupsData,
+    KeyNoteRelationsData
 } from '../models/types';
 import { MigrationService } from '../services/migrationService';
 
@@ -176,18 +176,18 @@ export class StorageService {
     /**
      * 加载术语笔记数据
      */
-    async loadTermNotes(): Promise<TermNote[]> {
-        const filePath = path.join(this.storagePath, 'term-notes.json');
+    async loadKeyNotes(): Promise<KeyNote[]> {
+        const filePath = path.join(this.storagePath, 'key-notes.json');
         if (!fs.existsSync(filePath)) {
             return [];
         }
 
         try {
             const content = fs.readFileSync(filePath, 'utf-8');
-            const data: TermNotesData = JSON.parse(content);
+            const data: KeyNotesData = JSON.parse(content);
             return data.notes || [];
         } catch (error) {
-            console.error('Failed to load term notes:', error);
+            console.error('Failed to load key notes:', error);
             return [];
         }
     }
@@ -195,9 +195,9 @@ export class StorageService {
     /**
      * 保存术语笔记数据
      */
-    async saveTermNotes(notes: TermNote[]): Promise<void> {
-        const filePath = path.join(this.storagePath, 'term-notes.json');
-        const data: TermNotesData = {
+    async saveKeyNotes(notes: KeyNote[]): Promise<void> {
+        const filePath = path.join(this.storagePath, 'key-notes.json');
+        const data: KeyNotesData = {
             version: DATA_VERSION,
             notes
         };
@@ -209,18 +209,18 @@ export class StorageService {
     /**
      * 加载术语笔记分组数据
      */
-    async loadTermNoteGroups(): Promise<TermNoteGroup[]> {
-        const filePath = path.join(this.storagePath, 'term-note-groups.json');
+    async loadKeyNoteGroups(): Promise<KeyNoteGroup[]> {
+        const filePath = path.join(this.storagePath, 'key-note-groups.json');
         if (!fs.existsSync(filePath)) {
             return [];
         }
 
         try {
             const content = fs.readFileSync(filePath, 'utf-8');
-            const data: TermNoteGroupsData = JSON.parse(content);
+            const data: KeyNoteGroupsData = JSON.parse(content);
             return data.groups || [];
         } catch (error) {
-            console.error('Failed to load term note groups:', error);
+            console.error('Failed to load key note groups:', error);
             return [];
         }
     }
@@ -228,9 +228,9 @@ export class StorageService {
     /**
      * 保存术语笔记分组数据
      */
-    async saveTermNoteGroups(groups: TermNoteGroup[]): Promise<void> {
-        const filePath = path.join(this.storagePath, 'term-note-groups.json');
-        const data: TermNoteGroupsData = {
+    async saveKeyNoteGroups(groups: KeyNoteGroup[]): Promise<void> {
+        const filePath = path.join(this.storagePath, 'key-note-groups.json');
+        const data: KeyNoteGroupsData = {
             version: DATA_VERSION,
             groups
         };
@@ -242,18 +242,18 @@ export class StorageService {
     /**
      * 加载术语笔记关联关系数据
      */
-    async loadTermNoteRelations(): Promise<TermNoteGroupRelation[]> {
-        const filePath = path.join(this.storagePath, 'term-note-relations.json');
+    async loadKeyNoteRelations(): Promise<KeyNoteGroupRelation[]> {
+        const filePath = path.join(this.storagePath, 'key-note-relations.json');
         if (!fs.existsSync(filePath)) {
             return [];
         }
 
         try {
             const content = fs.readFileSync(filePath, 'utf-8');
-            const data: TermNoteRelationsData = JSON.parse(content);
+            const data: KeyNoteRelationsData = JSON.parse(content);
             return data.relations || [];
         } catch (error) {
-            console.error('Failed to load term note relations:', error);
+            console.error('Failed to load key note relations:', error);
             return [];
         }
     }
@@ -261,9 +261,9 @@ export class StorageService {
     /**
      * 保存术语笔记关联关系数据
      */
-    async saveTermNoteRelations(relations: TermNoteGroupRelation[]): Promise<void> {
-        const filePath = path.join(this.storagePath, 'term-note-relations.json');
-        const data: TermNoteRelationsData = {
+    async saveKeyNoteRelations(relations: KeyNoteGroupRelation[]): Promise<void> {
+        const filePath = path.join(this.storagePath, 'key-note-relations.json');
+        const data: KeyNoteRelationsData = {
             version: DATA_VERSION,
             relations
         };
@@ -318,9 +318,9 @@ export class StorageService {
                 'bookmarks.json',
                 'groups.json',
                 'relations.json',
-                'term-notes.json',
-                'term-note-groups.json',
-                'term-note-relations.json'
+                'key-notes.json',
+                'key-note-groups.json',
+                'key-note-relations.json'
             ];
             for (const file of files) {
                 const sourcePath = path.join(this.storagePath, file);
@@ -415,14 +415,14 @@ export class StorageService {
     /**
      * 获取当前活动术语笔记分组 ID
      */
-    getActiveTermNoteGroupId(): string | undefined {
-        return this.context.workspaceState.get<string>('activeTermNoteGroupId');
+    getActiveKeyNoteGroupId(): string | undefined {
+        return this.context.workspaceState.get<string>('activeKeyNoteGroupId');
     }
 
     /**
      * 设置当前活动术语笔记分组 ID
      */
-    async setActiveTermNoteGroupId(id: string | undefined): Promise<void> {
-        await this.context.workspaceState.update('activeTermNoteGroupId', id);
+    async setActiveKeyNoteGroupId(id: string | undefined): Promise<void> {
+        await this.context.workspaceState.update('activeKeyNoteGroupId', id);
     }
 }

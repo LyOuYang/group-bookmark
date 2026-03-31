@@ -27,14 +27,14 @@ When reading massive source code, logic often scatters across dozens of files. "
 *   **Drag & Drop**: Drag bookmarks to move them between groups, or drag groups to reorder them.
 *   **Inline Actions**: Rename, delete, or toggle visibility directly from the group header.
 
-### 4. 📝 Term Notes
-*   **Active Group Flow**: Right-click a term-note group in the Term Notes tree and set it as active. `Add Note for Selection` uses the active term-note group automatically, and if none is active it will prompt you to select or create one.
-*   **Group Controls**: Term Notes group rows now support active, rename, and delete actions in the same way as bookmark groups.
-*   **Tree + Editor**: The Term Notes tree stays on the left, and the Note Editor stays in the panel area. Click a tree item to load it into the editor for preview, then continue editing from the panel when needed.
+### 4. 📝 Key Notes
+*   **Active Group Flow**: Right-click a key-note group in the Key Notes tree and set it as active. `Add Note for Selection` uses the active key-note group automatically, and if none is active it will prompt you to select or create one.
+*   **Group Controls**: Key Notes group rows now support active, rename, and delete actions in the same way as bookmark groups.
+*   **Tree + Editor**: The Key Notes tree stays on the left, and the Note Editor stays in the panel area. Click a tree item to load it into the editor for preview, then continue editing from the panel when needed.
 *   **Row Actions**: Note rows expose quick actions for common management tasks. Destructive actions, including delete, ask for confirmation.
-*   **Unified Marking**: Editor context-menu entries for bookmarks and term notes now use the same marking style.
-*   **Add Note**: Select text in the editor and run `Add Note for Selection` to create or open a term note.
-*   **Manage Membership**: In the Term Notes view, right-click a note to set a group active, remove it from the current group, add it to another group, or delete it everywhere.
+*   **Unified Marking**: Editor context-menu entries for bookmarks and key notes now use the same marking style.
+*   **Add Note**: Select text in the editor and run `Add Note for Selection` to create or open a key note.
+*   **Manage Membership**: In the Key Notes view, right-click a note to set a group active, remove it from the current group, add it to another group, or delete it everywhere.
 *   **Selection Sync**: Selecting a matching term reveals the note in the tree and loads the Note Editor in view mode, without opening a floating hover preview.
 
 ### 5. 🔄 Import/Export
@@ -101,13 +101,13 @@ When reading massive source code, logic often scatters across dozens of files. "
 *   **Inline Actions**: 在分组标题栏即可快速完成重命名、删除、切换可见性等操作。
 
 ### 4. 📝 术语笔记
-*   **激活分组**：在 Term Notes 树中右键术语分组即可设为当前激活分组。`Add Note for Selection` 会优先使用当前激活分组；如果没有激活分组，系统会提示你选择或创建一个分组。
-*   **分组操作**：Term Notes 分组行现在支持激活、重命名和删除，和书签分组保持一致。
-*   **树与编辑器**：Term Notes 树保留在左侧，Note Editor 保留在面板区域中。单击树项即可在编辑器中加载该笔记进行预览；需要时再从面板继续编辑。
+*   **激活分组**：在 Key Notes 树中右键术语分组即可设为当前激活分组。`Add Note for Selection` 会优先使用当前激活分组；如果没有激活分组，系统会提示你选择或创建一个分组。
+*   **分组操作**：Key Notes 分组行现在支持激活、重命名和删除，和书签分组保持一致。
+*   **树与编辑器**：Key Notes 树保留在左侧，Note Editor 保留在面板区域中。单击树项即可在编辑器中加载该笔记进行预览；需要时再从面板继续编辑。
 *   **行内操作**：笔记行提供常用快捷操作。删除等破坏性操作会在执行前要求确认。
 *   **统一标记**：编辑器右键菜单中，书签和术语笔记使用统一的标记样式。
 *   **添加笔记**：在编辑器中选中一段文本后运行 `Add Note for Selection`，即可在当前术语分组中创建或打开对应笔记。
-*   **管理归属**：在 Term Notes 视图中，右键笔记即可将其从当前分组移除、加入其他分组，或直接删除全部关联。
+*   **管理归属**：在 Key Notes 视图中，右键笔记即可将其从当前分组移除、加入其他分组，或直接删除全部关联。
 *   **选区联动**：当选中的术语与已有笔记匹配时，系统会在树中定位该笔记，并在 Note Editor 中以查看模式加载，不再自动弹出浮窗预览。
 
 ### 5. 🔄 导入/导出

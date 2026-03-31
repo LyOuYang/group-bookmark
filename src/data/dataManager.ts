@@ -3,9 +3,9 @@ import {
     Bookmark,
     Group,
     BookmarkGroup,
-    TermNote,
-    TermNoteGroup,
-    TermNoteGroupRelation
+    KeyNote,
+    KeyNoteGroup,
+    KeyNoteGroupRelation
 } from '../models/types';
 import { StorageService } from './storageService';
 
@@ -16,23 +16,23 @@ export class DataManager {
     private bookmarks: Map<string, Bookmark> = new Map();
     private groups: Map<string, Group> = new Map();
     private relations: Map<string, BookmarkGroup> = new Map();
-    private termNotes: Map<string, TermNote> = new Map();
-    private termNoteGroups: Map<string, TermNoteGroup> = new Map();
-    private termNoteRelations: Map<string, TermNoteGroupRelation> = new Map();
+    private keyNotes: Map<string, KeyNote> = new Map();
+    private keyNoteGroups: Map<string, KeyNoteGroup> = new Map();
+    private keyNoteRelations: Map<string, KeyNoteGroupRelation> = new Map();
 
     private _onDidChangeBookmarks = new vscode.EventEmitter<void>();
     private _onDidChangeGroups = new vscode.EventEmitter<void>();
     private _onDidChangeRelations = new vscode.EventEmitter<void>();
-    private _onDidChangeTermNotes = new vscode.EventEmitter<void>();
-    private _onDidChangeTermNoteGroups = new vscode.EventEmitter<void>();
-    private _onDidChangeTermNoteRelations = new vscode.EventEmitter<void>();
+    private _onDidChangeKeyNotes = new vscode.EventEmitter<void>();
+    private _onDidChangeKeyNoteGroups = new vscode.EventEmitter<void>();
+    private _onDidChangeKeyNoteRelations = new vscode.EventEmitter<void>();
 
     public readonly onDidChangeBookmarks = this._onDidChangeBookmarks.event;
     public readonly onDidChangeGroups = this._onDidChangeGroups.event;
     public readonly onDidChangeRelations = this._onDidChangeRelations.event;
-    public readonly onDidChangeTermNotes = this._onDidChangeTermNotes.event;
-    public readonly onDidChangeTermNoteGroups = this._onDidChangeTermNoteGroups.event;
-    public readonly onDidChangeTermNoteRelations = this._onDidChangeTermNoteRelations.event;
+    public readonly onDidChangeKeyNotes = this._onDidChangeKeyNotes.event;
+    public readonly onDidChangeKeyNoteGroups = this._onDidChangeKeyNoteGroups.event;
+    public readonly onDidChangeKeyNoteRelations = this._onDidChangeKeyNoteRelations.event;
 
     constructor(private storageService: StorageService) { }
 
@@ -45,26 +45,26 @@ export class DataManager {
         this._onDidChangeGroups.fire(); // 触发 UI 刷新
     }
 
-    getActiveTermNoteGroupId(): string | undefined {
-        return this.storageService.getActiveTermNoteGroupId();
+    getActiveKeyNoteGroupId(): string | undefined {
+        return this.storageService.getActiveKeyNoteGroupId();
     }
 
-    async setActiveTermNoteGroupId(id: string | undefined): Promise<void> {
-        await this.storageService.setActiveTermNoteGroupId(id);
-        this._onDidChangeTermNoteGroups.fire();
+    async setActiveKeyNoteGroupId(id: string | undefined): Promise<void> {
+        await this.storageService.setActiveKeyNoteGroupId(id);
+        this._onDidChangeKeyNoteGroups.fire();
     }
 
     /**
      * 从存储加载所有数据
      */
     async loadAll(): Promise<void> {
-        const [bookmarks, groups, relations, termNotes, termNoteGroups, termNoteRelations] = await Promise.all([
+        const [bookmarks, groups, relations, keyNotes, keyNoteGroups, keyNoteRelations] = await Promise.all([
             this.storageService.loadBookmarks(),
             this.storageService.loadGroups(),
             this.storageService.loadRelations(),
-            this.storageService.loadTermNotes(),
-            this.storageService.loadTermNoteGroups(),
-            this.storageService.loadTermNoteRelations()
+            this.storageService.loadKeyNotes(),
+            this.storageService.loadKeyNoteGroups(),
+            this.storageService.loadKeyNoteRelations()
         ]);
 
         this.bookmarks.clear();
@@ -76,14 +76,14 @@ export class DataManager {
         this.relations.clear();
         relations.forEach(r => this.relations.set(r.id, r));
 
-        this.termNotes.clear();
-        termNotes.forEach(note => this.termNotes.set(note.id, note));
+        this.keyNotes.clear();
+        keyNotes.forEach(note => this.keyNotes.set(note.id, note));
 
-        this.termNoteGroups.clear();
-        termNoteGroups.forEach(group => this.termNoteGroups.set(group.id, group));
+        this.keyNoteGroups.clear();
+        keyNoteGroups.forEach(group => this.keyNoteGroups.set(group.id, group));
 
-        this.termNoteRelations.clear();
-        termNoteRelations.forEach(relation => this.termNoteRelations.set(relation.id, relation));
+        this.keyNoteRelations.clear();
+        keyNoteRelations.forEach(relation => this.keyNoteRelations.set(relation.id, relation));
     }
 
     // ===== Bookmark 操作 =====
@@ -297,149 +297,149 @@ export class DataManager {
         this._onDidChangeRelations.fire();
     }
 
-    // ===== Term Note 操作 =====
+    // ===== Key Note 操作 =====
 
-    getTermNote(id: string): TermNote | undefined {
-        return this.termNotes.get(id);
+    getKeyNote(id: string): KeyNote | undefined {
+        return this.keyNotes.get(id);
     }
 
-    getAllTermNotes(): TermNote[] {
-        return Array.from(this.termNotes.values());
+    getAllKeyNotes(): KeyNote[] {
+        return Array.from(this.keyNotes.values());
     }
 
-    async addTermNote(termNote: TermNote): Promise<void> {
-        this.termNotes.set(termNote.id, termNote);
-        await this.storageService.saveTermNotes(this.getAllTermNotes());
-        this._onDidChangeTermNotes.fire();
+    async addKeyNote(keyNote: KeyNote): Promise<void> {
+        this.keyNotes.set(keyNote.id, keyNote);
+        await this.storageService.saveKeyNotes(this.getAllKeyNotes());
+        this._onDidChangeKeyNotes.fire();
     }
 
-    async updateTermNote(id: string, updates: Partial<TermNote>): Promise<void> {
-        const termNote = this.termNotes.get(id);
-        if (!termNote) {
+    async updateKeyNote(id: string, updates: Partial<KeyNote>): Promise<void> {
+        const keyNote = this.keyNotes.get(id);
+        if (!keyNote) {
             return;
         }
 
-        Object.assign(termNote, updates, { updatedAt: Date.now() });
-        await this.storageService.saveTermNotes(this.getAllTermNotes());
-        this._onDidChangeTermNotes.fire();
+        Object.assign(keyNote, updates, { updatedAt: Date.now() });
+        await this.storageService.saveKeyNotes(this.getAllKeyNotes());
+        this._onDidChangeKeyNotes.fire();
     }
 
-    async deleteTermNote(id: string): Promise<void> {
-        this.termNotes.delete(id);
+    async deleteKeyNote(id: string): Promise<void> {
+        this.keyNotes.delete(id);
 
-        const relationsToDelete = Array.from(this.termNoteRelations.values())
-            .filter(relation => relation.termNoteId === id);
+        const relationsToDelete = Array.from(this.keyNoteRelations.values())
+            .filter(relation => relation.keyNoteId === id);
 
         for (const relation of relationsToDelete) {
-            this.termNoteRelations.delete(relation.id);
+            this.keyNoteRelations.delete(relation.id);
         }
 
         await Promise.all([
-            this.storageService.saveTermNotes(this.getAllTermNotes()),
-            this.storageService.saveTermNoteRelations(this.getAllTermNoteRelations())
+            this.storageService.saveKeyNotes(this.getAllKeyNotes()),
+            this.storageService.saveKeyNoteRelations(this.getAllKeyNoteRelations())
         ]);
 
-        this._onDidChangeTermNotes.fire();
-        this._onDidChangeTermNoteRelations.fire();
+        this._onDidChangeKeyNotes.fire();
+        this._onDidChangeKeyNoteRelations.fire();
     }
 
-    getTermNoteGroup(id: string): TermNoteGroup | undefined {
-        return this.termNoteGroups.get(id);
+    getKeyNoteGroup(id: string): KeyNoteGroup | undefined {
+        return this.keyNoteGroups.get(id);
     }
 
-    getAllTermNoteGroups(): TermNoteGroup[] {
-        return Array.from(this.termNoteGroups.values()).sort((a, b) => a.order - b.order);
+    getAllKeyNoteGroups(): KeyNoteGroup[] {
+        return Array.from(this.keyNoteGroups.values()).sort((a, b) => a.order - b.order);
     }
 
-    async addTermNoteGroup(group: TermNoteGroup): Promise<void> {
-        this.termNoteGroups.set(group.id, group);
-        await this.storageService.saveTermNoteGroups(this.getAllTermNoteGroups());
-        this._onDidChangeTermNoteGroups.fire();
+    async addKeyNoteGroup(group: KeyNoteGroup): Promise<void> {
+        this.keyNoteGroups.set(group.id, group);
+        await this.storageService.saveKeyNoteGroups(this.getAllKeyNoteGroups());
+        this._onDidChangeKeyNoteGroups.fire();
     }
 
-    async updateTermNoteGroup(id: string, updates: Partial<TermNoteGroup>): Promise<void> {
-        const group = this.termNoteGroups.get(id);
+    async updateKeyNoteGroup(id: string, updates: Partial<KeyNoteGroup>): Promise<void> {
+        const group = this.keyNoteGroups.get(id);
         if (!group) {
             return;
         }
 
         Object.assign(group, updates, { updatedAt: Date.now() });
-        await this.storageService.saveTermNoteGroups(this.getAllTermNoteGroups());
-        this._onDidChangeTermNoteGroups.fire();
+        await this.storageService.saveKeyNoteGroups(this.getAllKeyNoteGroups());
+        this._onDidChangeKeyNoteGroups.fire();
     }
 
-    async deleteTermNoteGroup(id: string): Promise<void> {
-        this.termNoteGroups.delete(id);
+    async deleteKeyNoteGroup(id: string): Promise<void> {
+        this.keyNoteGroups.delete(id);
 
-        const relationsToDelete = Array.from(this.termNoteRelations.values())
+        const relationsToDelete = Array.from(this.keyNoteRelations.values())
             .filter(relation => relation.groupId === id);
 
         for (const relation of relationsToDelete) {
-            this.termNoteRelations.delete(relation.id);
+            this.keyNoteRelations.delete(relation.id);
         }
 
         await Promise.all([
-            this.storageService.saveTermNoteGroups(this.getAllTermNoteGroups()),
-            this.storageService.saveTermNoteRelations(this.getAllTermNoteRelations())
+            this.storageService.saveKeyNoteGroups(this.getAllKeyNoteGroups()),
+            this.storageService.saveKeyNoteRelations(this.getAllKeyNoteRelations())
         ]);
 
-        this._onDidChangeTermNoteGroups.fire();
-        this._onDidChangeTermNoteRelations.fire();
+        this._onDidChangeKeyNoteGroups.fire();
+        this._onDidChangeKeyNoteRelations.fire();
     }
 
-    async reorderTermNoteGroups(groupIds: string[]): Promise<void> {
+    async reorderKeyNoteGroups(groupIds: string[]): Promise<void> {
         groupIds.forEach((id, index) => {
-            const group = this.termNoteGroups.get(id);
+            const group = this.keyNoteGroups.get(id);
             if (group) {
                 group.order = index;
             }
         });
 
-        await this.storageService.saveTermNoteGroups(this.getAllTermNoteGroups());
-        this._onDidChangeTermNoteGroups.fire();
+        await this.storageService.saveKeyNoteGroups(this.getAllKeyNoteGroups());
+        this._onDidChangeKeyNoteGroups.fire();
     }
 
-    getTermNoteRelation(id: string): TermNoteGroupRelation | undefined {
-        return this.termNoteRelations.get(id);
+    getKeyNoteRelation(id: string): KeyNoteGroupRelation | undefined {
+        return this.keyNoteRelations.get(id);
     }
 
-    getAllTermNoteRelations(): TermNoteGroupRelation[] {
-        return Array.from(this.termNoteRelations.values());
+    getAllKeyNoteRelations(): KeyNoteGroupRelation[] {
+        return Array.from(this.keyNoteRelations.values());
     }
 
-    async addTermNoteRelation(relation: TermNoteGroupRelation): Promise<void> {
-        this.termNoteRelations.set(relation.id, relation);
-        await this.storageService.saveTermNoteRelations(this.getAllTermNoteRelations());
-        this._onDidChangeTermNoteRelations.fire();
+    async addKeyNoteRelation(relation: KeyNoteGroupRelation): Promise<void> {
+        this.keyNoteRelations.set(relation.id, relation);
+        await this.storageService.saveKeyNoteRelations(this.getAllKeyNoteRelations());
+        this._onDidChangeKeyNoteRelations.fire();
     }
 
-    async updateTermNoteRelation(id: string, updates: Partial<TermNoteGroupRelation>): Promise<void> {
-        const relation = this.termNoteRelations.get(id);
+    async updateKeyNoteRelation(id: string, updates: Partial<KeyNoteGroupRelation>): Promise<void> {
+        const relation = this.keyNoteRelations.get(id);
         if (!relation) {
             return;
         }
 
         Object.assign(relation, updates);
-        await this.storageService.saveTermNoteRelations(this.getAllTermNoteRelations());
-        this._onDidChangeTermNoteRelations.fire();
+        await this.storageService.saveKeyNoteRelations(this.getAllKeyNoteRelations());
+        this._onDidChangeKeyNoteRelations.fire();
     }
 
-    async deleteTermNoteRelation(id: string): Promise<void> {
-        this.termNoteRelations.delete(id);
-        await this.storageService.saveTermNoteRelations(this.getAllTermNoteRelations());
-        this._onDidChangeTermNoteRelations.fire();
+    async deleteKeyNoteRelation(id: string): Promise<void> {
+        this.keyNoteRelations.delete(id);
+        await this.storageService.saveKeyNoteRelations(this.getAllKeyNoteRelations());
+        this._onDidChangeKeyNoteRelations.fire();
     }
 
-    async reorderTermNoteRelationsInGroup(groupId: string, relationIds: string[]): Promise<void> {
+    async reorderKeyNoteRelationsInGroup(groupId: string, relationIds: string[]): Promise<void> {
         relationIds.forEach((id, index) => {
-            const relation = this.termNoteRelations.get(id);
+            const relation = this.keyNoteRelations.get(id);
             if (relation && relation.groupId === groupId) {
                 relation.order = index;
             }
         });
 
-        await this.storageService.saveTermNoteRelations(this.getAllTermNoteRelations());
-        this._onDidChangeTermNoteRelations.fire();
+        await this.storageService.saveKeyNoteRelations(this.getAllKeyNoteRelations());
+        this._onDidChangeKeyNoteRelations.fire();
     }
 
     async reorderRelationsInGroup(groupId: string, relationIds: string[]): Promise<void> {
@@ -461,24 +461,24 @@ export class DataManager {
         this.bookmarks.clear();
         this.groups.clear();
         this.relations.clear();
-        this.termNotes.clear();
-        this.termNoteGroups.clear();
-        this.termNoteRelations.clear();
+        this.keyNotes.clear();
+        this.keyNoteGroups.clear();
+        this.keyNoteRelations.clear();
 
         await Promise.all([
             this.storageService.saveBookmarks([]),
             this.storageService.saveGroups([]),
             this.storageService.saveRelations([]),
-            this.storageService.saveTermNotes([]),
-            this.storageService.saveTermNoteGroups([]),
-            this.storageService.saveTermNoteRelations([])
+            this.storageService.saveKeyNotes([]),
+            this.storageService.saveKeyNoteGroups([]),
+            this.storageService.saveKeyNoteRelations([])
         ]);
 
         this._onDidChangeBookmarks.fire();
         this._onDidChangeGroups.fire();
         this._onDidChangeRelations.fire();
-        this._onDidChangeTermNotes.fire();
-        this._onDidChangeTermNoteGroups.fire();
-        this._onDidChangeTermNoteRelations.fire();
+        this._onDidChangeKeyNotes.fire();
+        this._onDidChangeKeyNoteGroups.fire();
+        this._onDidChangeKeyNoteRelations.fire();
     }
 }

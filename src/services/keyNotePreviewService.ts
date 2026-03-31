@@ -1,19 +1,19 @@
 import * as vscode from 'vscode';
-import { TermNote } from '../models/types';
-import { extractNormalizedTerm } from '../utils/termNoteUtils';
-import { TermNoteRelationManager } from '../core/termNoteRelationManager';
-import { TermNoteManager } from '../core/termNoteManager';
+import { KeyNote } from '../models/types';
+import { extractNormalizedTerm } from '../utils/keyNoteUtils';
+import { KeyNoteRelationManager } from '../core/keyNoteRelationManager';
+import { KeyNoteManager } from '../core/keyNoteManager';
 
 function escapeMarkdown(value: string): string {
     return value.replace(/[\\`*_{}[\]()#+.!>-]/g, '\\$&');
 }
 
-export class TermNotePreviewService implements vscode.Disposable {
+export class KeyNotePreviewService implements vscode.Disposable {
     private readonly decorationType: vscode.TextEditorDecorationType;
 
     constructor(
-        private readonly termNoteManager: Pick<TermNoteManager, 'getByNormalizedTerm'>,
-        private readonly termNoteRelationManager: Pick<TermNoteRelationManager, 'getGroupsForTermNote'>
+        private readonly keyNoteManager: Pick<KeyNoteManager, 'getByNormalizedTerm'>,
+        private readonly keyNoteRelationManager: Pick<KeyNoteRelationManager, 'getGroupsForKeyNote'>
     ) {
         this.decorationType = vscode.window.createTextEditorDecorationType({});
     }
@@ -22,7 +22,7 @@ export class TermNotePreviewService implements vscode.Disposable {
         this.decorationType.dispose();
     }
 
-    getSelectedTermNote(editor?: vscode.TextEditor): TermNote | undefined {
+    getSelectedKeyNote(editor?: vscode.TextEditor): KeyNote | undefined {
         if (!editor) {
             return undefined;
         }
@@ -33,7 +33,7 @@ export class TermNotePreviewService implements vscode.Disposable {
             return undefined;
         }
 
-        return this.termNoteManager.getByNormalizedTerm(normalizedTerm);
+        return this.keyNoteManager.getByNormalizedTerm(normalizedTerm);
     }
 
     async previewSelection(editor?: vscode.TextEditor): Promise<void> {
@@ -41,13 +41,13 @@ export class TermNotePreviewService implements vscode.Disposable {
             return;
         }
 
-        const note = this.getSelectedTermNote(editor);
+        const note = this.getSelectedKeyNote(editor);
         if (!note) {
             editor.setDecorations(this.decorationType, []);
             return;
         }
 
-        const hoverMessage = this.buildHoverMessage(note, this.termNoteRelationManager.getGroupsForTermNote(note.id));
+        const hoverMessage = this.buildHoverMessage(note, this.keyNoteRelationManager.getGroupsForKeyNote(note.id));
         editor.setDecorations(this.decorationType, [
             {
                 range: editor.selection,
@@ -66,7 +66,7 @@ export class TermNotePreviewService implements vscode.Disposable {
         return extractNormalizedTerm(trimmed);
     }
 
-    private buildHoverMessage(note: TermNote, groups: Array<{ displayName: string }>): vscode.MarkdownString {
+    private buildHoverMessage(note: KeyNote, groups: Array<{ displayName: string }>): vscode.MarkdownString {
         const markdown = new vscode.MarkdownString();
         markdown.appendMarkdown(`### ${escapeMarkdown(note.term)}\n\n`);
 

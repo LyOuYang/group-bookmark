@@ -41,7 +41,7 @@ export interface BookmarkGroup {
 /**
  * 术语笔记数据模型
  */
-export interface TermNote {
+export interface KeyNote {
     id: string;
     term: string;
     normalizedTerm: string;
@@ -54,7 +54,7 @@ export interface TermNote {
 /**
  * 术语笔记分组数据模型
  */
-export interface TermNoteGroup {
+export interface KeyNoteGroup {
     id: string;
     name: string;
     displayName: string;
@@ -68,9 +68,9 @@ export interface TermNoteGroup {
 /**
  * 术语笔记-分组关联关系
  */
-export interface TermNoteGroupRelation {
+export interface KeyNoteGroupRelation {
     id: string;
-    termNoteId: string;
+    keyNoteId: string;
     groupId: string;
     order: number;
     createdAt: number;
@@ -133,27 +133,27 @@ export interface RelationsData {
 }
 
 /**
- * 存储数据格式（term-notes.json）
+ * 存储数据格式（key-notes.json）
  */
-export interface TermNotesData {
+export interface KeyNotesData {
     version: string;
-    notes: TermNote[];
+    notes: KeyNote[];
 }
 
 /**
- * 存储数据格式（term-note-groups.json）
+ * 存储数据格式（key-note-groups.json）
  */
-export interface TermNoteGroupsData {
+export interface KeyNoteGroupsData {
     version: string;
-    groups: TermNoteGroup[];
+    groups: KeyNoteGroup[];
 }
 
 /**
- * 存储数据格式（term-note-relations.json）
+ * 存储数据格式（key-note-relations.json）
  */
-export interface TermNoteRelationsData {
+export interface KeyNoteRelationsData {
     version: string;
-    relations: TermNoteGroupRelation[];
+    relations: KeyNoteGroupRelation[];
 }
 
 /**

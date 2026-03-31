@@ -1,12 +1,13 @@
 import * as vscode from 'vscode';
-import { TermNoteManager } from '../core/termNoteManager';
-import { TermNoteRelationManager } from '../core/termNoteRelationManager';
+import { KeyNoteManager } from '../core/keyNoteManager';
+import { KeyNoteRelationManager } from '../core/keyNoteRelationManager';
+import { KeyNoteGroupManager } from '../core/keyNoteGroupManager';
 
-const EMPTY_PREVIEW_TITLE = 'Select a term note';
-const EMPTY_PREVIEW_BODY = 'Click a note in the Term Notes list to preview it here.';
+const EMPTY_PREVIEW_TITLE = 'Select a key note';
+const EMPTY_PREVIEW_BODY = 'Click a note in the Key Notes list to preview it here.';
 const MISSING_PREVIEW_BODY = 'The selected note is no longer available.';
 const EMPTY_NOTE_BODY = 'No note body yet.';
-const TERM_NOTE_EDITOR_PANEL_COMMAND = 'workbench.view.extension.groupBookmarksTermNotePanel';
+const TERM_NOTE_EDITOR_PANEL_COMMAND = 'workbench.view.extension.groupBookmarksKeyNotePanel';
 
 function escapeHtml(value: string): string {
     return value
@@ -232,7 +233,7 @@ function renderMarkdown(markdown: string): string {
     return html.join('');
 }
 
-export class TermNoteSidebarPreviewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
+export class KeyNoteSidebarPreviewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
     private webviewView: vscode.WebviewView | undefined;
     private selectedNoteId: string | undefined;
     private mode: 'preview' | 'edit' = 'preview';
@@ -240,15 +241,16 @@ export class TermNoteSidebarPreviewProvider implements vscode.WebviewViewProvide
     private readonly disposables: vscode.Disposable[];
 
     constructor(
-        private readonly termNoteManager: Pick<TermNoteManager, 'getById'>,
-        private readonly termNoteRelationManager: Pick<TermNoteRelationManager, 'getGroupsForTermNote'>,
-        onDidChangeTermNotes: vscode.Event<void>,
-        onDidChangeTermNoteRelations: vscode.Event<void>,
-        private readonly updateTermNoteContent?: (noteId: string, content: string) => Promise<void>
+        private readonly keyNoteManager: Pick<KeyNoteManager, 'getById'>,
+        private readonly keyNoteRelationManager: Pick<KeyNoteRelationManager, 'getGroupsForKeyNote' | 'addKeyNoteToGroup'>,
+        private readonly keyNoteGroupManager: Pick<KeyNoteGroupManager, 'getAllGroups' | 'getActiveKeyNoteGroupId' | 'setActiveKeyNoteGroupId' | 'createGroup'>,
+        onDidChangeKeyNotes: vscode.Event<void>,
+        onDidChangeKeyNoteRelations: vscode.Event<void>,
+        private readonly updateKeyNoteContent?: (noteId: string, content: string) => Promise<void>
     ) {
         this.disposables = [
-            onDidChangeTermNotes(() => this.render()),
-            onDidChangeTermNoteRelations(() => this.render())
+            onDidChangeKeyNotes(() => this.render()),
+            onDidChangeKeyNoteRelations(() => this.render())
         ];
     }
 
@@ -269,7 +271,7 @@ export class TermNoteSidebarPreviewProvider implements vscode.WebviewViewProvide
         this.render();
     }
 
-    previewTermNote(noteId: string | undefined): void {
+    previewKeyNote(noteId: string | undefined): void {
         this.selectedNoteId = noteId;
         this.mode = 'preview';
         this.syncDraftContent();
@@ -277,7 +279,7 @@ export class TermNoteSidebarPreviewProvider implements vscode.WebviewViewProvide
         this.render();
     }
 
-    editTermNote(noteId: string): void {
+    editKeyNote(noteId: string): void {
         this.selectedNoteId = noteId;
         this.mode = 'edit';
         this.syncDraftContent();
@@ -291,7 +293,7 @@ export class TermNoteSidebarPreviewProvider implements vscode.WebviewViewProvide
         }
 
         const note = this.selectedNoteId
-            ? this.termNoteManager.getById(this.selectedNoteId)
+            ? this.keyNoteManager.getById(this.selectedNoteId)
             : undefined;
 
         if (!this.selectedNoteId) {
@@ -315,13 +317,13 @@ export class TermNoteSidebarPreviewProvider implements vscode.WebviewViewProvide
         }
 
         const previewBodyHtml = renderMarkdown(note.contentMarkdown) || `<p class="muted">${escapeHtml(EMPTY_NOTE_BODY)}</p>`;
-        const groups = this.termNoteRelationManager.getGroupsForTermNote(note.id)
+        const groups = this.keyNoteRelationManager.getGroupsForKeyNote(note.id)
             .map(group => group.displayName);
 
         this.webviewView.webview.html = this.renderHtml({
             title: note.term,
             bodyHtml: this.mode === 'edit'
-                ? this.renderEditorHtml()
+                ? this.renderEditorHtml(note.id)
                 : this.renderPreviewHtml(previewBodyHtml),
             groups,
             muted: false
@@ -330,7 +332,7 @@ export class TermNoteSidebarPreviewProvider implements vscode.WebviewViewProvide
 
     private syncDraftContent(): void {
         const note = this.selectedNoteId
-            ? this.termNoteManager.getById(this.selectedNoteId)
+            ? this.keyNoteManager.getById(this.selectedNoteId)
             : undefined;
         this.draftContent = note?.contentMarkdown ?? '';
     }
@@ -340,7 +342,7 @@ export class TermNoteSidebarPreviewProvider implements vscode.WebviewViewProvide
             return;
         }
 
-        const typedMessage = message as { type?: string; content?: string };
+        const typedMessage = message as { type?: string; content?: string; groupId?: string };
 
         if (typedMessage.type === 'edit') {
             this.mode = 'edit';
@@ -356,8 +358,31 @@ export class TermNoteSidebarPreviewProvider implements vscode.WebviewViewProvide
             return;
         }
 
-        if (typedMessage.type === 'save' && typeof typedMessage.content === 'string' && this.updateTermNoteContent) {
-            await this.updateTermNoteContent(this.selectedNoteId, typedMessage.content);
+        if (typedMessage.type === 'requestCreateGroup') {
+            const newGroupName = await vscode.window.showInputBox({
+                prompt: 'Enter name for the new Key Group',
+                placeHolder: 'Group name'
+            });
+            if (newGroupName && newGroupName.trim()) {
+                try {
+                    const newGroup = await this.keyNoteGroupManager.createGroup(newGroupName.trim());
+                    await this.keyNoteGroupManager.setActiveKeyNoteGroupId(newGroup.id);
+                    // The new active group will be automatically selected in the re-rendered select box.
+                    this.render();
+                } catch (error) {
+                    vscode.window.showErrorMessage(`Failed to create group: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                }
+            }
+            return;
+        }
+
+        if (typedMessage.type === 'save' && typeof typedMessage.content === 'string' && this.updateKeyNoteContent) {
+            await this.updateKeyNoteContent(this.selectedNoteId, typedMessage.content);
+            if (typedMessage.groupId) {
+                // 如果用户刚刚选择了分组，或者已有分组，通过保存事件强关联
+                await this.keyNoteRelationManager.addKeyNoteToGroup(this.selectedNoteId, typedMessage.groupId);
+                await this.keyNoteGroupManager.setActiveKeyNoteGroupId(typedMessage.groupId);
+            }
             this.draftContent = typedMessage.content;
             this.mode = 'preview';
             this.render();
@@ -373,13 +398,33 @@ export class TermNoteSidebarPreviewProvider implements vscode.WebviewViewProvide
         await vscode.commands.executeCommand(TERM_NOTE_EDITOR_PANEL_COMMAND);
     }
 
-    private renderEditorHtml(): string {
+    private renderEditorHtml(noteId: string): string {
+        const allGroups = this.keyNoteGroupManager.getAllGroups();
+        const activeGroupId = this.keyNoteGroupManager.getActiveKeyNoteGroupId();
+        const existingGroups = this.keyNoteRelationManager.getGroupsForKeyNote(noteId);
+        
+        let targetGroupId = '';
+        if (existingGroups && existingGroups.length > 0) {
+            targetGroupId = existingGroups[0].id;
+        } else if (activeGroupId) {
+            targetGroupId = activeGroupId;
+        }
+
+        const optionsHtml = allGroups.map(group => 
+            `<option value="${escapeHtml(group.id)}" ${targetGroupId === group.id ? 'selected' : ''}>${escapeHtml(group.name)}</option>`
+        ).join('');
+
         return `
 <div class="toolbar">
     <button class="button primary" data-action="save">Save</button>
     <button class="button" data-action="cancel">Cancel</button>
+    <select id="key-note-group" class="group-select" required>
+        <option value="" disabled ${!targetGroupId ? 'selected' : ''}>--- Select a Key Group ---</option>
+        <option value="--create-new--" class="create-option">+ Create New Group...</option>
+        ${optionsHtml}
+    </select>
 </div>
-<textarea id="term-note-editor" class="editor" spellcheck="false">${escapeHtml(this.draftContent)}</textarea>
+<textarea id="key-note-editor" class="editor" spellcheck="false">${escapeHtml(this.draftContent)}</textarea>
 <div class="hint">Press Ctrl/Cmd+S or use Save to keep changes without leaving your code.</div>`;
     }
 
@@ -606,6 +651,17 @@ ${previewBodyHtml}`;
             line-height: 1.5;
         }
 
+        .group-select {
+            background: var(--vscode-dropdown-background);
+            color: var(--vscode-dropdown-foreground);
+            border: 1px solid var(--vscode-dropdown-border);
+            padding: 4px 8px;
+            border-radius: 4px;
+            outline: none;
+            cursor: pointer;
+            margin-left: auto; /* push to the right */
+        }
+
         .muted {
             color: var(--vscode-descriptionForeground);
         }
@@ -625,14 +681,33 @@ ${previewBodyHtml}`;
     </div>
     <script>
         const vscode = acquireVsCodeApi();
-        const editor = document.getElementById('term-note-editor');
+        const editor = document.getElementById('key-note-editor');
+        const select = document.getElementById('key-note-group');
+        
+        if (select) {
+            let previousValue = select.value;
+            select.addEventListener('change', (e) => {
+                if (e.target.value === '--create-new--') {
+                    vscode.postMessage({ type: 'requestCreateGroup' });
+                    e.target.value = previousValue; // Revert visually until re-render
+                } else {
+                    previousValue = e.target.value;
+                }
+            });
+        }
+
         const save = () => {
             if (!editor) {
                 return;
             }
+            if (select && !select.value) {
+                alert('Please select a key group before saving.');
+                return;
+            }
             vscode.postMessage({
                 type: 'save',
-                content: editor.value
+                content: editor.value,
+                groupId: select ? select.value : undefined
             });
         };
 

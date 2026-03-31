@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { extractNormalizedTerm, normalizeTerm } from '../../src/utils/termNoteUtils';
+import { extractNormalizedTerm, normalizeTerm } from '../../src/utils/keyNoteUtils';
 
 describe('normalizeTerm', () => {
   it('normalizes by trim + lowercase only', () => {

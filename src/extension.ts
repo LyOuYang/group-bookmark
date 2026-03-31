@@ -4,23 +4,23 @@ import { DataManager } from './data/dataManager';
 import { BookmarkManager } from './core/bookmarkManager';
 import { GroupManager } from './core/groupManager';
 import { RelationManager } from './core/relationManager';
-import { TermNoteManager } from './core/termNoteManager';
-import { TermNoteGroupManager } from './core/termNoteGroupManager';
-import { TermNoteRelationManager } from './core/termNoteRelationManager';
+import { KeyNoteManager } from './core/keyNoteManager';
+import { KeyNoteGroupManager } from './core/keyNoteGroupManager';
+import { KeyNoteRelationManager } from './core/keyNoteRelationManager';
 import { BookmarkTreeProvider } from './views/treeProvider';
 import { CommandHandler } from './views/commandHandler';
-import { TermNoteTreeItem, TermNoteTreeProvider } from './views/termNoteTreeProvider';
-import { TermNoteCommandHandler } from './views/termNoteCommandHandler';
-import { TermNoteSidebarPreviewProvider } from './views/termNoteSidebarPreviewProvider';
+import { KeyNoteTreeItem, KeyNoteTreeProvider } from './views/keyNoteTreeProvider';
+import { KeyNoteCommandHandler } from './views/keyNoteCommandHandler';
+import { KeyNoteSidebarPreviewProvider } from './views/keyNoteSidebarPreviewProvider';
 import { DecorationManager } from './views/decorationManager';
 import { BookmarkCodeLensProvider } from './views/codeLensProvider';
 import { ImportExportService } from './services/importExportService';
-import { TermNotePreviewService } from './services/termNotePreviewService';
-import { TermNoteDocumentService } from './services/termNoteDocumentService';
+import { KeyNotePreviewService } from './services/keyNotePreviewService';
+import { KeyNoteDocumentService } from './services/keyNoteDocumentService';
 import { PathUtils } from './utils/pathUtils';
 import { Logger } from './utils/logger';
 
-export function registerTermNotePreviewSelectionListener(
+export function registerKeyNotePreviewSelectionListener(
     context: vscode.ExtensionContext
 ): vscode.Disposable {
     const disposable = new vscode.Disposable(() => {});
@@ -28,39 +28,39 @@ export function registerTermNotePreviewSelectionListener(
     return disposable;
 }
 
-export function registerTermNoteTreePreviewSelectionListener(
+export function registerKeyNoteTreePreviewSelectionListener(
     context: vscode.ExtensionContext,
-    treeView: Pick<vscode.TreeView<TermNoteTreeItem>, 'onDidChangeSelection'>,
-    termNoteSidebarPreviewProvider: Pick<TermNoteSidebarPreviewProvider, 'previewTermNote'>
+    treeView: Pick<vscode.TreeView<KeyNoteTreeItem>, 'onDidChangeSelection'>,
+    keyNoteSidebarPreviewProvider: Pick<KeyNoteSidebarPreviewProvider, 'previewKeyNote'>
 ): vscode.Disposable {
     const disposable = treeView.onDidChangeSelection(event => {
         const selectedItem = event.selection[0];
-        const selectedNoteId = selectedItem?.type === 'term-note'
+        const selectedNoteId = selectedItem?.type === 'key-note'
             ? selectedItem.dataId
             : undefined;
 
-        termNoteSidebarPreviewProvider.previewTermNote(selectedNoteId);
+        keyNoteSidebarPreviewProvider.previewKeyNote(selectedNoteId);
     });
 
     context.subscriptions.push(disposable);
     return disposable;
 }
 
-export function registerTermNoteSelectionRevealListener(
+export function registerKeyNoteSelectionRevealListener(
     context: vscode.ExtensionContext,
-    treeView: Pick<vscode.TreeView<TermNoteTreeItem>, 'reveal'>,
-    termNoteTreeProvider: Pick<TermNoteTreeProvider, 'getRevealItemForNoteId'>,
-    termNotePreviewService: Pick<TermNotePreviewService, 'getSelectedTermNote'>,
-    termNoteSidebarPreviewProvider: Pick<TermNoteSidebarPreviewProvider, 'previewTermNote'>
+    treeView: Pick<vscode.TreeView<KeyNoteTreeItem>, 'reveal'>,
+    keyNoteTreeProvider: Pick<KeyNoteTreeProvider, 'getRevealItemForNoteId'>,
+    keyNotePreviewService: Pick<KeyNotePreviewService, 'getSelectedKeyNote'>,
+    keyNoteSidebarPreviewProvider: Pick<KeyNoteSidebarPreviewProvider, 'previewKeyNote'>
 ): vscode.Disposable {
     const disposable = vscode.window.onDidChangeTextEditorSelection(async event => {
-        const note = termNotePreviewService.getSelectedTermNote(event.textEditor);
+        const note = keyNotePreviewService.getSelectedKeyNote(event.textEditor);
         if (!note) {
             return;
         }
 
-        termNoteSidebarPreviewProvider.previewTermNote(note.id);
-        const revealItem = termNoteTreeProvider.getRevealItemForNoteId(note.id);
+        keyNoteSidebarPreviewProvider.previewKeyNote(note.id);
+        const revealItem = keyNoteTreeProvider.getRevealItemForNoteId(note.id);
         if (!revealItem) {
             return;
         }
@@ -95,12 +95,12 @@ export async function activate(context: vscode.ExtensionContext) {
         const bookmarkManager = new BookmarkManager(dataManager);
         const groupManager = new GroupManager(dataManager);
         const relationManager = new RelationManager(dataManager);
-        const termNoteManager = new TermNoteManager(dataManager);
-        const termNoteGroupManager = new TermNoteGroupManager(dataManager);
-        const termNoteRelationManager = new TermNoteRelationManager(dataManager);
-        const termNoteDocumentService = new TermNoteDocumentService(
-            (noteId) => dataManager.getTermNote(noteId),
-            (noteId, content) => termNoteManager.updateContent(noteId, content)
+        const keyNoteManager = new KeyNoteManager(dataManager);
+        const keyNoteGroupManager = new KeyNoteGroupManager(dataManager);
+        const keyNoteRelationManager = new KeyNoteRelationManager(dataManager);
+        const keyNoteDocumentService = new KeyNoteDocumentService(
+            (noteId) => dataManager.getKeyNote(noteId),
+            (noteId, content) => keyNoteManager.updateContent(noteId, content)
         );
 
         // 初始化 TreeView
@@ -113,35 +113,36 @@ export async function activate(context: vscode.ExtensionContext) {
 
         context.subscriptions.push(treeView);
 
-        const termNoteTreeProvider = new TermNoteTreeProvider(
+        const keyNoteTreeProvider = new KeyNoteTreeProvider(
             dataManager,
-            termNoteGroupManager,
-            termNoteRelationManager
+            keyNoteGroupManager,
+            keyNoteRelationManager
         );
-        const termNoteTreeView = vscode.window.createTreeView('groupTermNotesView', {
-            treeDataProvider: termNoteTreeProvider,
+        const keyNoteTreeView = vscode.window.createTreeView('groupKeyNotesView', {
+            treeDataProvider: keyNoteTreeProvider,
             showCollapseAll: true
         });
-        const termNoteSidebarPreviewProvider = new TermNoteSidebarPreviewProvider(
-            termNoteManager,
-            termNoteRelationManager,
-            dataManager.onDidChangeTermNotes,
-            dataManager.onDidChangeTermNoteRelations,
-            (noteId, content) => termNoteManager.updateContent(noteId, content)
+        const keyNoteSidebarPreviewProvider = new KeyNoteSidebarPreviewProvider(
+            keyNoteManager,
+            keyNoteRelationManager,
+            keyNoteGroupManager,
+            dataManager.onDidChangeKeyNotes,
+            dataManager.onDidChangeKeyNoteRelations,
+            (noteId, content) => keyNoteManager.updateContent(noteId, content)
         );
 
-        context.subscriptions.push(termNoteTreeView);
-        context.subscriptions.push(termNoteSidebarPreviewProvider);
+        context.subscriptions.push(keyNoteTreeView);
+        context.subscriptions.push(keyNoteSidebarPreviewProvider);
         context.subscriptions.push(
             vscode.window.registerWebviewViewProvider(
-                'groupTermNotePreviewView',
-                termNoteSidebarPreviewProvider
+                'groupKeyNotePreviewView',
+                keyNoteSidebarPreviewProvider
             )
         );
         context.subscriptions.push(
             vscode.workspace.registerFileSystemProvider(
-                TermNoteDocumentService.scheme,
-                termNoteDocumentService,
+                KeyNoteDocumentService.scheme,
+                keyNoteDocumentService,
                 { isCaseSensitive: true, isReadonly: false }
             )
         );
@@ -156,27 +157,27 @@ export async function activate(context: vscode.ExtensionContext) {
 
         commandHandler.registerCommands(context);
 
-        const termNoteCommandHandler = new TermNoteCommandHandler(
-            termNoteManager,
-            termNoteGroupManager,
-            termNoteRelationManager,
-            termNoteDocumentService,
-            termNoteSidebarPreviewProvider
+        const keyNoteCommandHandler = new KeyNoteCommandHandler(
+            keyNoteManager,
+            keyNoteGroupManager,
+            keyNoteRelationManager,
+            keyNoteDocumentService,
+            keyNoteSidebarPreviewProvider
         );
-        termNoteCommandHandler.registerCommands(context);
+        keyNoteCommandHandler.registerCommands(context);
 
-        const termNotePreviewService = new TermNotePreviewService(
-            termNoteManager,
-            termNoteRelationManager
+        const keyNotePreviewService = new KeyNotePreviewService(
+            keyNoteManager,
+            keyNoteRelationManager
         );
-        context.subscriptions.push(termNotePreviewService);
-        registerTermNoteTreePreviewSelectionListener(context, termNoteTreeView, termNoteSidebarPreviewProvider);
-        registerTermNoteSelectionRevealListener(
+        context.subscriptions.push(keyNotePreviewService);
+        registerKeyNoteTreePreviewSelectionListener(context, keyNoteTreeView, keyNoteSidebarPreviewProvider);
+        registerKeyNoteSelectionRevealListener(
             context,
-            termNoteTreeView,
-            termNoteTreeProvider,
-            termNotePreviewService,
-            termNoteSidebarPreviewProvider
+            keyNoteTreeView,
+            keyNoteTreeProvider,
+            keyNotePreviewService,
+            keyNoteSidebarPreviewProvider
         );
 
         // 初始化 DecorationManager

@@ -1,18 +1,18 @@
 import { v4 as uuidv4 } from 'uuid';
-import { TermNote } from '../models/types';
-import { extractNormalizedTerm } from '../utils/termNoteUtils';
+import { KeyNote } from '../models/types';
+import { extractNormalizedTerm } from '../utils/keyNoteUtils';
 import { DataManager } from '../data/dataManager';
 
 /**
  * 术语笔记管理器 - 负责词条本体的业务逻辑
  */
-export class TermNoteManager {
+export class KeyNoteManager {
     constructor(private dataManager: DataManager) { }
 
     /**
      * 创建或获取词条笔记
      */
-    async createOrGetTermNote(term: string): Promise<TermNote> {
+    async createOrGetKeyNote(term: string): Promise<KeyNote> {
         const normalizedTerm = extractNormalizedTerm(term);
         if (!normalizedTerm) {
             throw new Error('Term cannot be blank');
@@ -25,7 +25,7 @@ export class TermNoteManager {
         }
 
         const now = Date.now();
-        const termNote: TermNote = {
+        const keyNote: KeyNote = {
             id: uuidv4(),
             term: term.trim(),
             normalizedTerm,
@@ -34,35 +34,35 @@ export class TermNoteManager {
             updatedAt: now
         };
 
-        await this.dataManager.addTermNote(termNote);
-        return termNote;
+        await this.dataManager.addKeyNote(keyNote);
+        return keyNote;
     }
 
     /**
      * 更新词条正文
      */
     async updateContent(noteId: string, contentMarkdown: string): Promise<void> {
-        await this.dataManager.updateTermNote(noteId, { contentMarkdown });
+        await this.dataManager.updateKeyNote(noteId, { contentMarkdown });
     }
 
     /**
      * 删除词条笔记
      */
-    async deleteTermNote(noteId: string): Promise<void> {
-        await this.dataManager.deleteTermNote(noteId);
+    async deleteKeyNote(noteId: string): Promise<void> {
+        await this.dataManager.deleteKeyNote(noteId);
     }
 
     /**
      * 按 ID 查找词条笔记
      */
-    getById(noteId: string): TermNote | undefined {
-        return this.dataManager.getTermNote(noteId);
+    getById(noteId: string): KeyNote | undefined {
+        return this.dataManager.getKeyNote(noteId);
     }
 
     /**
      * 按规范化词条查找
      */
-    getByNormalizedTerm(normalizedTerm: string): TermNote | undefined {
-        return this.dataManager.getAllTermNotes().find(note => note.normalizedTerm === normalizedTerm);
+    getByNormalizedTerm(normalizedTerm: string): KeyNote | undefined {
+        return this.dataManager.getAllKeyNotes().find(note => note.normalizedTerm === normalizedTerm);
     }
 }
