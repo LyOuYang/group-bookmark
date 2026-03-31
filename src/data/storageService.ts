@@ -15,7 +15,8 @@ import {
     KeyNoteGroupRelation,
     KeyNotesData,
     KeyNoteGroupsData,
-    KeyNoteRelationsData
+    KeyNoteRelationsData,
+    ExportScope
 } from '../models/types';
 import { MigrationService } from '../services/migrationService';
 
@@ -360,10 +361,14 @@ export class StorageService {
     /**
      * 导出所有数据
      */
-    async exportData(): Promise<ExportData> {
-        const bookmarks = await this.loadBookmarks();
-        const groups = await this.loadGroups();
-        const relations = await this.loadRelations();
+    async exportData(scope: ExportScope = 'all'): Promise<ExportData> {
+        const bookmarks = scope === 'all' || scope === 'bookmarks' ? await this.loadBookmarks() : undefined;
+        const groups = scope === 'all' || scope === 'bookmarks' ? await this.loadGroups() : undefined;
+        const relations = scope === 'all' || scope === 'bookmarks' ? await this.loadRelations() : undefined;
+
+        const keyNotes = scope === 'all' || scope === 'keyNotes' ? await this.loadKeyNotes() : undefined;
+        const keyNoteGroups = scope === 'all' || scope === 'keyNotes' ? await this.loadKeyNoteGroups() : undefined;
+        const keyNoteRelations = scope === 'all' || scope === 'keyNotes' ? await this.loadKeyNoteRelations() : undefined;
 
         const workspaceName = vscode.workspace.workspaceFolders?.[0]?.name || 'Unknown';
 
@@ -374,7 +379,10 @@ export class StorageService {
             exportedAt: new Date().toISOString(),
             bookmarks,
             groups,
-            relations
+            relations,
+            keyNotes,
+            keyNoteGroups,
+            keyNoteRelations
         };
     }
 
@@ -386,9 +394,25 @@ export class StorageService {
         await this.backup();
 
         // 导入新数据
-        await this.saveBookmarks(data.bookmarks);
-        await this.saveGroups(data.groups);
-        await this.saveRelations(data.relations);
+        if (data.bookmarks) {
+            await this.saveBookmarks(data.bookmarks);
+        }
+        if (data.groups) {
+            await this.saveGroups(data.groups);
+        }
+        if (data.relations) {
+            await this.saveRelations(data.relations);
+        }
+        
+        if (data.keyNotes) {
+            await this.saveKeyNotes(data.keyNotes);
+        }
+        if (data.keyNoteGroups) {
+            await this.saveKeyNoteGroups(data.keyNoteGroups);
+        }
+        if (data.keyNoteRelations) {
+            await this.saveKeyNoteRelations(data.keyNoteRelations);
+        }
     }
 
     /**

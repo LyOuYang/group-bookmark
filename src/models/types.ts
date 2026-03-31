@@ -103,9 +103,12 @@ export interface ExportData {
     platform?: string;
     workspace: string;
     exportedAt: string;
-    bookmarks: Bookmark[];
-    groups: Group[];
-    relations: BookmarkGroup[];
+    bookmarks?: Bookmark[];
+    groups?: Group[];
+    relations?: BookmarkGroup[];
+    keyNotes?: KeyNote[];
+    keyNoteGroups?: KeyNoteGroup[];
+    keyNoteRelations?: KeyNoteGroupRelation[];
 }
 
 /**
@@ -165,3 +168,8 @@ export const DATA_VERSION = '1.1.0';
  * 平台标识
  */
 export const PLATFORM = 'vscode';
+
+/**
+ * 导出与导入的数据范围
+ */
+export type ExportScope = 'all' | 'bookmarks' | 'keyNotes';

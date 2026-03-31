@@ -222,15 +222,12 @@ export async function activate(context: vscode.ExtensionContext) {
 
         // 注册导入导出命令
         context.subscriptions.push(
-            vscode.commands.registerCommand('groupBookmarks.exportBookmarks', () =>
-                importExportService.exportBookmarks()
-            )
-        );
-
-        context.subscriptions.push(
-            vscode.commands.registerCommand('groupBookmarks.importBookmarks', () =>
-                importExportService.importBookmarks()
-            )
+            vscode.commands.registerCommand('groupBookmarks.importAll', () => importExportService.importData('all')),
+            vscode.commands.registerCommand('groupBookmarks.exportAll', () => importExportService.exportData('all')),
+            vscode.commands.registerCommand('groupBookmarks.importBookmarks', () => importExportService.importData('bookmarks')),
+            vscode.commands.registerCommand('groupBookmarks.exportBookmarks', () => importExportService.exportData('bookmarks')),
+            vscode.commands.registerCommand('groupBookmarks.importKeyNotes', () => importExportService.importData('keyNotes')),
+            vscode.commands.registerCommand('groupBookmarks.exportKeyNotes', () => importExportService.exportData('keyNotes'))
         );
 
         // 注册切换 Gutter 装饰的命令

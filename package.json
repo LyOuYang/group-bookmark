@@ -67,6 +67,18 @@
         "icon": "$(arrow-down)"
       },
       {
+        "command": "groupBookmarks.importAll",
+        "title": "Import Data",
+        "category": "Group Bookmarks",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "groupBookmarks.exportAll",
+        "title": "Export All Data",
+        "category": "Group Bookmarks",
+        "icon": "$(cloud-download)"
+      },
+      {
         "command": "groupBookmarks.importBookmarks",
         "title": "Import Bookmarks",
         "category": "Group Bookmarks",
@@ -75,6 +87,18 @@
       {
         "command": "groupBookmarks.exportBookmarks",
         "title": "Export Bookmarks",
+        "category": "Group Bookmarks",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "groupBookmarks.importKeyNotes",
+        "title": "Import Key Notes",
+        "category": "Group Bookmarks",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "groupBookmarks.exportKeyNotes",
+        "title": "Export Key Notes",
         "category": "Group Bookmarks",
         "icon": "$(cloud-download)"
       },
@@ -263,6 +287,14 @@
       ],
       "view/title": [
         {
+          "command": "groupBookmarks.importAll",
+          "when": "view == groupBookmarksView"
+        },
+        {
+          "command": "groupBookmarks.exportAll",
+          "when": "view == groupBookmarksView"
+        },
+        {
           "command": "groupBookmarks.importBookmarks",
           "when": "view == groupBookmarksView",
           "group": "navigation"
@@ -270,6 +302,16 @@
         {
           "command": "groupBookmarks.exportBookmarks",
           "when": "view == groupBookmarksView",
+          "group": "navigation"
+        },
+        {
+          "command": "groupBookmarks.importKeyNotes",
+          "when": "view == groupKeyNotesView",
+          "group": "navigation"
+        },
+        {
+          "command": "groupBookmarks.exportKeyNotes",
+          "when": "view == groupKeyNotesView",
           "group": "navigation"
         },
         {
