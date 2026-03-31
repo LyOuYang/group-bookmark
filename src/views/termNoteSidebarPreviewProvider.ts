@@ -6,6 +6,7 @@ const EMPTY_PREVIEW_TITLE = 'Select a term note';
 const EMPTY_PREVIEW_BODY = 'Click a note in the Term Notes list to preview it here.';
 const MISSING_PREVIEW_BODY = 'The selected note is no longer available.';
 const EMPTY_NOTE_BODY = 'No note body yet.';
+const TERM_NOTE_EDITOR_PANEL_COMMAND = 'workbench.view.extension.groupBookmarksTermNotePanel';
 
 function escapeHtml(value: string): string {
     return value
@@ -234,13 +235,16 @@ function renderMarkdown(markdown: string): string {
 export class TermNoteSidebarPreviewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
     private webviewView: vscode.WebviewView | undefined;
     private selectedNoteId: string | undefined;
+    private mode: 'preview' | 'edit' = 'preview';
+    private draftContent = '';
     private readonly disposables: vscode.Disposable[];
 
     constructor(
         private readonly termNoteManager: Pick<TermNoteManager, 'getById'>,
         private readonly termNoteRelationManager: Pick<TermNoteRelationManager, 'getGroupsForTermNote'>,
         onDidChangeTermNotes: vscode.Event<void>,
-        onDidChangeTermNoteRelations: vscode.Event<void>
+        onDidChangeTermNoteRelations: vscode.Event<void>,
+        private readonly updateTermNoteContent?: (noteId: string, content: string) => Promise<void>
     ) {
         this.disposables = [
             onDidChangeTermNotes(() => this.render()),
@@ -255,13 +259,29 @@ export class TermNoteSidebarPreviewProvider implements vscode.WebviewViewProvide
     resolveWebviewView(webviewView: vscode.WebviewView): void {
         this.webviewView = webviewView;
         webviewView.webview.options = {
-            enableScripts: false
+            enableScripts: true
         };
+        this.disposables.push(
+            webviewView.webview.onDidReceiveMessage(async message => {
+                await this.handleMessage(message);
+            })
+        );
         this.render();
     }
 
     previewTermNote(noteId: string | undefined): void {
         this.selectedNoteId = noteId;
+        this.mode = 'preview';
+        this.syncDraftContent();
+        void this.revealEditorView();
+        this.render();
+    }
+
+    editTermNote(noteId: string): void {
+        this.selectedNoteId = noteId;
+        this.mode = 'edit';
+        this.syncDraftContent();
+        void this.revealEditorView();
         this.render();
     }
 
@@ -300,10 +320,75 @@ export class TermNoteSidebarPreviewProvider implements vscode.WebviewViewProvide
 
         this.webviewView.webview.html = this.renderHtml({
             title: note.term,
-            bodyHtml: previewBodyHtml,
+            bodyHtml: this.mode === 'edit'
+                ? this.renderEditorHtml()
+                : this.renderPreviewHtml(previewBodyHtml),
             groups,
             muted: false
         });
+    }
+
+    private syncDraftContent(): void {
+        const note = this.selectedNoteId
+            ? this.termNoteManager.getById(this.selectedNoteId)
+            : undefined;
+        this.draftContent = note?.contentMarkdown ?? '';
+    }
+
+    private async handleMessage(message: unknown): Promise<void> {
+        if (!this.selectedNoteId || !message || typeof message !== 'object' || !('type' in message)) {
+            return;
+        }
+
+        const typedMessage = message as { type?: string; content?: string };
+
+        if (typedMessage.type === 'edit') {
+            this.mode = 'edit';
+            this.syncDraftContent();
+            this.render();
+            return;
+        }
+
+        if (typedMessage.type === 'cancel') {
+            this.mode = 'preview';
+            this.syncDraftContent();
+            this.render();
+            return;
+        }
+
+        if (typedMessage.type === 'save' && typeof typedMessage.content === 'string' && this.updateTermNoteContent) {
+            await this.updateTermNoteContent(this.selectedNoteId, typedMessage.content);
+            this.draftContent = typedMessage.content;
+            this.mode = 'preview';
+            this.render();
+        }
+    }
+
+    private async revealEditorView(): Promise<void> {
+        if (this.webviewView) {
+            this.webviewView.show(true);
+            return;
+        }
+
+        await vscode.commands.executeCommand(TERM_NOTE_EDITOR_PANEL_COMMAND);
+    }
+
+    private renderEditorHtml(): string {
+        return `
+<div class="toolbar">
+    <button class="button primary" data-action="save">Save</button>
+    <button class="button" data-action="cancel">Cancel</button>
+</div>
+<textarea id="term-note-editor" class="editor" spellcheck="false">${escapeHtml(this.draftContent)}</textarea>
+<div class="hint">Press Ctrl/Cmd+S or use Save to keep changes without leaving your code.</div>`;
+    }
+
+    private renderPreviewHtml(previewBodyHtml: string): string {
+        return `
+<div class="toolbar">
+    <button class="button primary" data-action="edit">Edit</button>
+</div>
+${previewBodyHtml}`;
     }
 
     private renderHtml({
@@ -486,6 +571,41 @@ export class TermNoteSidebarPreviewProvider implements vscode.WebviewViewProvide
             text-decoration: none;
         }
 
+        .toolbar {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .button {
+            border: 1px solid color-mix(in srgb, var(--vscode-button-border, var(--vscode-panel-border)) 80%, transparent);
+            background: var(--vscode-button-secondaryBackground, transparent);
+            color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+            border-radius: 6px;
+            padding: 6px 10px;
+            cursor: pointer;
+        }
+
+        .button.primary {
+            background: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+        }
+
+        .editor {
+            width: 100%;
+            min-height: 260px;
+            resize: vertical;
+            box-sizing: border-box;
+            border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 80%, transparent);
+            border-radius: 8px;
+            background: var(--vscode-input-background);
+            color: var(--vscode-input-foreground);
+            padding: 10px 12px;
+            font-family: var(--vscode-editor-font-family, var(--vscode-font-family));
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
         .muted {
             color: var(--vscode-descriptionForeground);
         }
@@ -501,8 +621,39 @@ export class TermNoteSidebarPreviewProvider implements vscode.WebviewViewProvide
         <h3 class="title">${escapeHtml(title)}</h3>
         ${groupMarkup}
         <div class="${bodyClass}">${bodyHtml}</div>
-        <div class="hint">Use Open Note on the selected item to edit the full note.</div>
+        <div class="hint">Use Open Note when you need the note in a standalone markdown tab.</div>
     </div>
+    <script>
+        const vscode = acquireVsCodeApi();
+        const editor = document.getElementById('term-note-editor');
+        const save = () => {
+            if (!editor) {
+                return;
+            }
+            vscode.postMessage({
+                type: 'save',
+                content: editor.value
+            });
+        };
+
+        document.querySelectorAll('[data-action]').forEach(button => {
+            button.addEventListener('click', () => {
+                const action = button.getAttribute('data-action');
+                if (action === 'save') {
+                    save();
+                    return;
+                }
+                vscode.postMessage({ type: action });
+            });
+        });
+
+        window.addEventListener('keydown', event => {
+            if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+                event.preventDefault();
+                save();
+            }
+        });
+    </script>
 </body>
 </html>`;
     }

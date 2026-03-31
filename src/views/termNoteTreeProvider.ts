@@ -40,6 +40,36 @@ export class TermNoteTreeProvider implements vscode.TreeDataProvider<TermNoteTre
         return element;
     }
 
+    getParent(element: TermNoteTreeItem): TermNoteTreeItem | undefined {
+        if (element.type !== 'term-note' || !element.groupId) {
+            return undefined;
+        }
+
+        const group = this.termNoteGroupManager.getGroupById(element.groupId);
+        if (!group) {
+            return undefined;
+        }
+
+        return this.createGroupItem(group);
+    }
+
+    getRevealItemForNoteId(noteId: string): TermNoteTreeItem | undefined {
+        const note = this.dataManager.getTermNote(noteId);
+        if (!note) {
+            return undefined;
+        }
+
+        const groups = this.termNoteRelationManager.getGroupsForTermNote(noteId);
+        if (groups.length === 0) {
+            return undefined;
+        }
+
+        const activeGroupId = this.termNoteGroupManager.getActiveTermNoteGroupId();
+        const targetGroup = groups.find(group => group.id === activeGroupId) ?? groups[0];
+
+        return this.createNoteItem(note.id, targetGroup.id, note.term);
+    }
+
     getChildren(element?: TermNoteTreeItem): TermNoteTreeItem[] {
         if (!element) {
             return this.getGroupItems();
@@ -55,21 +85,7 @@ export class TermNoteTreeProvider implements vscode.TreeDataProvider<TermNoteTre
     private getGroupItems(): TermNoteTreeItem[] {
         const activeGroupId = this.termNoteGroupManager.getActiveTermNoteGroupId();
 
-        return this.termNoteGroupManager.getAllGroups().map(group => {
-            const item = new TermNoteTreeItem(
-                'term-note-group',
-                group.id,
-                undefined,
-                group.displayName,
-                vscode.TreeItemCollapsibleState.Collapsed
-            );
-
-            if (group.id === activeGroupId) {
-                item.description = 'Active';
-            }
-
-            return item;
-        });
+        return this.termNoteGroupManager.getAllGroups().map(group => this.createGroupItem(group, group.id === activeGroupId));
     }
 
     private getNoteItems(groupId: string): TermNoteTreeItem[] {
@@ -80,16 +96,34 @@ export class TermNoteTreeProvider implements vscode.TreeDataProvider<TermNoteTre
                     return null;
                 }
 
-                const item = new TermNoteTreeItem(
-                    'term-note',
-                    note.id,
-                    groupId,
-                    note.term,
-                    vscode.TreeItemCollapsibleState.None
-                );
-
-                return item;
+                return this.createNoteItem(note.id, groupId, note.term);
             })
             .filter((item): item is TermNoteTreeItem => item !== null);
+    }
+
+    private createGroupItem(group: { id: string; displayName: string }, isActive = false): TermNoteTreeItem {
+        const item = new TermNoteTreeItem(
+            'term-note-group',
+            group.id,
+            undefined,
+            group.displayName,
+            vscode.TreeItemCollapsibleState.Collapsed
+        );
+
+        if (isActive) {
+            item.description = 'Active';
+        }
+
+        return item;
+    }
+
+    private createNoteItem(noteId: string, groupId: string, label: string): TermNoteTreeItem {
+        return new TermNoteTreeItem(
+            'term-note',
+            noteId,
+            groupId,
+            label,
+            vscode.TreeItemCollapsibleState.None
+        );
     }
 }

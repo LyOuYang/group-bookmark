@@ -22,19 +22,26 @@ export class TermNotePreviewService implements vscode.Disposable {
         this.decorationType.dispose();
     }
 
-    async previewSelection(editor?: vscode.TextEditor): Promise<void> {
+    getSelectedTermNote(editor?: vscode.TextEditor): TermNote | undefined {
         if (!editor) {
-            return;
+            return undefined;
         }
 
         const selectedText = editor.document.getText(editor.selection);
         const normalizedTerm = this.getPreviewNormalizedTerm(selectedText);
         if (!normalizedTerm) {
-            editor.setDecorations(this.decorationType, []);
+            return undefined;
+        }
+
+        return this.termNoteManager.getByNormalizedTerm(normalizedTerm);
+    }
+
+    async previewSelection(editor?: vscode.TextEditor): Promise<void> {
+        if (!editor) {
             return;
         }
 
-        const note = this.termNoteManager.getByNormalizedTerm(normalizedTerm);
+        const note = this.getSelectedTermNote(editor);
         if (!note) {
             editor.setDecorations(this.decorationType, []);
             return;

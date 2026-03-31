@@ -18,12 +18,17 @@ type TermNoteTreeItemContext = {
     label?: string | vscode.TreeItemLabel;
 };
 
+type TermNoteSidebarEditor = {
+    editTermNote: (noteId: string) => void;
+};
+
 export class TermNoteCommandHandler {
     constructor(
         private readonly termNoteManager: TermNoteManager,
         private readonly termNoteGroupManager: TermNoteGroupManager,
         private readonly termNoteRelationManager: TermNoteRelationManager,
-        private readonly termNoteDocumentService: TermNoteDocumentService
+        private readonly termNoteDocumentService: TermNoteDocumentService,
+        private readonly termNoteSidebarEditor?: TermNoteSidebarEditor
     ) { }
 
     registerCommands(context: vscode.ExtensionContext): void {
@@ -59,6 +64,12 @@ export class TermNoteCommandHandler {
 
             const note = await this.termNoteManager.createOrGetTermNote(selectedText);
             await this.termNoteRelationManager.addTermNoteToGroup(note.id, targetGroupId);
+
+            if (this.termNoteSidebarEditor) {
+                this.termNoteSidebarEditor.editTermNote(note.id);
+                return;
+            }
+
             await this.termNoteDocumentService.openNoteDocument(note.id);
         } catch (error) {
             vscode.window.showErrorMessage(

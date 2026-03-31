@@ -3,7 +3,7 @@ import * as path from 'node:path';
 import type * as vscode from 'vscode';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GroupColor, type TermNote, type TermNoteGroup, type TermNoteGroupRelation } from '../../src/models/types';
-import { registerTermNotePreviewSelectionListener } from '../../src/extension';
+import { registerTermNotePreviewSelectionListener, registerTermNoteSelectionRevealListener } from '../../src/extension';
 import { DataManager } from '../../src/data/dataManager';
 import { TermNoteManager } from '../../src/core/termNoteManager';
 import { TermNoteGroupManager } from '../../src/core/termNoteGroupManager';
@@ -300,10 +300,20 @@ function asSidebarPreviewProvider(mock: unknown): TermNoteSidebarPreviewProvider
 }
 
 function createWebviewView() {
+  let messageListener: ((message: unknown) => void | Promise<void>) | undefined;
+
   return {
     webview: {
       html: '',
       options: {},
+      onDidReceiveMessage: vi.fn((listener: (message: unknown) => void | Promise<void>) => {
+        messageListener = listener;
+        return { dispose: vi.fn() };
+      }),
+    },
+    show: vi.fn(),
+    fireMessage: async (message: unknown) => {
+      await messageListener?.(message);
     },
   };
 }
@@ -356,7 +366,7 @@ describe('TermNoteCommandHandler', () => {
     expect(context.subscriptions).toHaveLength(7);
   });
 
-  it('opens the custom term-note document after creating or finding the note', async () => {
+  it('opens the custom term-note document after creating or finding the note when no panel editor is available', async () => {
     const termNoteManager = {
       createOrGetTermNote: vi.fn().mockResolvedValue({ id: 'note-1' }),
     };
@@ -390,6 +400,47 @@ describe('TermNoteCommandHandler', () => {
     await handler.addTermNoteFromSelection();
 
     expect(documentService.openNoteDocument).toHaveBeenCalledWith('note-1');
+  });
+
+  it('loads the fixed term-note editor after creating or finding the note when a panel editor is available', async () => {
+    const termNoteManager = {
+      createOrGetTermNote: vi.fn().mockResolvedValue({ id: 'note-1' }),
+    };
+    const termNoteGroupManager = {
+      getActiveTermNoteGroupId: vi.fn().mockReturnValue('group-1'),
+      getGroupById: vi.fn().mockReturnValue(makeGroup('group-1')),
+    };
+    const relationManager = {
+      addTermNoteToGroup: vi.fn().mockResolvedValue(undefined),
+    };
+    const documentService = {
+      openNoteDocument: vi.fn().mockResolvedValue(undefined),
+    };
+    const sidebarPreviewProvider = {
+      editTermNote: vi.fn(),
+    };
+
+    mockState.window.activeTextEditor = {
+      document: {
+        getText: vi.fn().mockReturnValue('User_Table'),
+      },
+      selection: {
+        isEmpty: false,
+      },
+    };
+
+    const handler = new TermNoteCommandHandler(
+      asTermNoteManager(termNoteManager),
+      asTermNoteGroupManager(termNoteGroupManager),
+      asTermNoteRelationManager(relationManager),
+      asTermNoteDocumentService(documentService),
+      asSidebarPreviewProvider(sidebarPreviewProvider)
+    );
+
+    await handler.addTermNoteFromSelection();
+
+    expect(sidebarPreviewProvider.editTermNote).toHaveBeenCalledWith('note-1');
+    expect(documentService.openNoteDocument).not.toHaveBeenCalled();
   });
 
   it('opens an existing term note from the tree item command', async () => {
@@ -1098,6 +1149,46 @@ describe('TermNoteTreeProvider', () => {
 
     expect(refreshSpy).toHaveBeenCalledTimes(3);
   });
+
+  it('builds a reveal item for a note using the active group when possible', () => {
+    const note = makeNote('note-1');
+    const userGroup = makeGroup('group-1', { displayName: '1. User Notes', name: 'User Notes' });
+    const apiGroup = makeGroup('group-2', { displayName: '2. API Notes', name: 'API Notes' });
+    const dataManager = {
+      onDidChangeTermNotes: vi.fn(),
+      onDidChangeTermNoteGroups: vi.fn(),
+      onDidChangeTermNoteRelations: vi.fn(),
+      getTermNote: vi.fn((id: string) => (id === note.id ? note : undefined)),
+    };
+    const termNoteGroupManager = {
+      getAllGroups: vi.fn().mockReturnValue([userGroup, apiGroup]),
+      getGroupById: vi.fn((id: string) => ({ [userGroup.id]: userGroup, [apiGroup.id]: apiGroup }[id])),
+      getActiveTermNoteGroupId: vi.fn().mockReturnValue(apiGroup.id),
+    };
+    const relationManager = {
+      getRelationsInGroup: vi.fn(),
+      getGroupsForTermNote: vi.fn().mockReturnValue([userGroup, apiGroup]),
+    };
+    const provider = new TermNoteTreeProvider(
+      asDataManager(dataManager),
+      asTermNoteGroupManager(termNoteGroupManager),
+      asTermNoteRelationManager(relationManager)
+    );
+
+    const item = provider.getRevealItemForNoteId(note.id);
+    const parent = item ? provider.getParent(item) : undefined;
+
+    expect(item).toEqual(expect.objectContaining({
+      type: 'term-note',
+      dataId: note.id,
+      groupId: apiGroup.id,
+      label: note.term,
+    }));
+    expect(parent).toEqual(expect.objectContaining({
+      type: 'term-note-group',
+      dataId: apiGroup.id,
+    }));
+  });
 });
 
 describe('TermNoteDocumentService', () => {
@@ -1136,11 +1227,13 @@ describe('TermNoteDocumentService', () => {
 });
 
 describe('package contributions for term notes', () => {
-  it('contributes the add-term-note command and term-notes view', () => {
+  it('contributes the add-term-note command, term-notes tree, and a dedicated note-editor panel', () => {
     const packageJsonPath = path.resolve(__dirname, '..', '..', 'package.json');
     const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
     const commands = packageJson.contributes.commands as Array<{ command: string }>;
-    const views = packageJson.contributes.views.groupBookmarks as Array<{ id: string; type?: string }>;
+    const sidebarViews = packageJson.contributes.views.groupBookmarks as Array<{ id: string; type?: string }>;
+    const panelContainers = packageJson.contributes.viewsContainers.panel as Array<{ id: string; title?: string }>;
+    const panelViews = packageJson.contributes.views.groupBookmarksTermNotePanel as Array<{ id: string; type?: string }>;
 
     expect(commands.some(item => item.command === 'groupBookmarks.addTermNoteFromSelection')).toBe(true);
     expect(commands.some(item => item.command === 'groupBookmarks.openTermNote')).toBe(true);
@@ -1149,10 +1242,18 @@ describe('package contributions for term notes', () => {
     expect(commands.some(item => item.command === 'groupBookmarks.deleteTermNote')).toBe(true);
     expect(commands.some(item => item.command === 'groupBookmarks.addExistingTermNoteToGroup')).toBe(true);
     expect(commands.some(item => item.command === 'groupBookmarks.setActiveTermNoteGroup')).toBe(true);
-    expect(views.some(item => item.id === 'groupTermNotesView')).toBe(true);
-    expect(views).toEqual(expect.arrayContaining([
+    expect(sidebarViews.some(item => item.id === 'groupTermNotesView')).toBe(true);
+    expect(sidebarViews.some(item => item.id === 'groupTermNotePreviewView')).toBe(false);
+    expect(panelContainers).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'groupBookmarksTermNotePanel',
+        title: 'Term Note Editor',
+      }),
+    ]));
+    expect(panelViews).toEqual(expect.arrayContaining([
       expect.objectContaining({
         id: 'groupTermNotePreviewView',
+        name: 'Note Editor',
         type: 'webview',
       }),
     ]));
@@ -1260,6 +1361,7 @@ describe('TermNoteSidebarPreviewProvider', () => {
 
     expect(view.webview.html).toContain('User Table');
     expect(view.webview.html).toContain('1. User Notes');
+    expect(view.webview.html).toContain('data-action="edit"');
     expect(view.webview.html).toContain('<h1>Overview</h1>');
     expect(view.webview.html).toContain('<p>Used by <strong>API</strong> layer.</p>');
     expect(view.webview.html).toContain('<li>indexed</li>');
@@ -1309,9 +1411,8 @@ describe('TermNoteSidebarPreviewProvider', () => {
   it('refreshes the selected preview when term-note data changes', () => {
     const termNotesEvent = createEventHook();
     const termNoteRelationsEvent = createEventHook();
-    const getById = vi.fn()
-      .mockReturnValueOnce(makeNote('note-1', { term: 'User Table', contentMarkdown: 'Old body' }))
-      .mockReturnValueOnce(makeNote('note-1', { term: 'User Table', contentMarkdown: '## Updated body' }));
+    let currentContent = 'Old body';
+    const getById = vi.fn(() => makeNote('note-1', { term: 'User Table', contentMarkdown: currentContent }));
     const provider = new TermNoteSidebarPreviewProvider(
       {
         getById,
@@ -1328,9 +1429,60 @@ describe('TermNoteSidebarPreviewProvider', () => {
     provider.previewTermNote('note-1');
     expect(view.webview.html).toContain('<p>Old body</p>');
 
+    currentContent = '## Updated body';
     termNotesEvent.fire();
 
     expect(view.webview.html).toContain('<h2>Updated body</h2>');
+  });
+
+  it('switches to edit mode and saves note content from the webview', async () => {
+    const updateContent = vi.fn().mockResolvedValue(undefined);
+    let currentContent = 'Old body';
+    const provider = new TermNoteSidebarPreviewProvider(
+      {
+        getById: vi.fn(() => makeNote('note-1', { term: 'User Table', contentMarkdown: currentContent })),
+      } as unknown as Pick<TermNoteManager, 'getById'>,
+      {
+        getGroupsForTermNote: vi.fn().mockReturnValue([]),
+      } as unknown as Pick<TermNoteRelationManager, 'getGroupsForTermNote'>,
+      vi.fn(),
+      vi.fn(),
+      updateContent
+    );
+    const view = createWebviewView();
+
+    provider.resolveWebviewView(view as unknown as vscode.WebviewView);
+    provider.editTermNote('note-1');
+    expect(view.webview.html).toContain('<textarea');
+
+    updateContent.mockImplementation(async (_noteId: string, content: string) => {
+      currentContent = content;
+    });
+    await view.fireMessage({ type: 'save', content: '# Saved body' });
+
+    expect(updateContent).toHaveBeenCalledWith('note-1', '# Saved body');
+    expect(view.webview.html).toContain('<h1>Saved body</h1>');
+    expect(view.show).toHaveBeenCalledWith(true);
+  });
+
+  it('opens the note-editor panel when editing before the view has been resolved', async () => {
+    const provider = new TermNoteSidebarPreviewProvider(
+      {
+        getById: vi.fn().mockReturnValue(makeNote('note-1', { term: 'User Table', contentMarkdown: 'Body' })),
+      } as unknown as Pick<TermNoteManager, 'getById'>,
+      {
+        getGroupsForTermNote: vi.fn().mockReturnValue([]),
+      } as unknown as Pick<TermNoteRelationManager, 'getGroupsForTermNote'>,
+      vi.fn(),
+      vi.fn()
+    );
+
+    provider.editTermNote('note-1');
+    await Promise.resolve();
+
+    expect(mockState.commands.executeCommand).toHaveBeenCalledWith(
+      'workbench.view.extension.groupBookmarksTermNotePanel'
+    );
   });
 });
 
@@ -1360,5 +1512,49 @@ describe('extension term-note tree preview wiring', () => {
 
     expect(previewTermNote).toHaveBeenNthCalledWith(1, 'note-1');
     expect(previewTermNote).toHaveBeenNthCalledWith(2, undefined);
+  });
+});
+
+describe('extension term-note selection reveal wiring', () => {
+  it('reveals an existing selected term note in the tree and opens the panel editor without stealing focus', async () => {
+    const reveal = vi.fn().mockResolvedValue(undefined);
+    const editTermNote = vi.fn();
+    const getSelectedTermNote = vi.fn().mockReturnValue(makeNote('note-1', { term: 'User Table' }));
+    const getRevealItemForNoteId = vi.fn().mockReturnValue({
+      type: 'term-note',
+      dataId: 'note-1',
+      groupId: 'group-1',
+      label: 'User Table',
+    });
+    let selectionListener: ((event: { textEditor: unknown }) => void) | undefined;
+    mockState.window.onDidChangeTextEditorSelection.mockImplementation((listener: (event: { textEditor: unknown }) => void) => {
+      selectionListener = listener;
+      return { dispose: vi.fn() };
+    });
+
+    const context = createExtensionContext();
+    registerTermNoteSelectionRevealListener(
+      asExtensionContext(context),
+      {
+        reveal,
+      } as unknown as vscode.TreeView<TermNoteTreeItem>,
+      {
+        getRevealItemForNoteId,
+      } as unknown as Pick<TermNoteTreeProvider, 'getRevealItemForNoteId'>,
+      asPreviewService({ getSelectedTermNote }),
+      asSidebarPreviewProvider({ editTermNote })
+    );
+
+    const textEditor = { id: 'editor-1' };
+    selectionListener?.({ textEditor });
+    await Promise.resolve();
+
+    expect(getSelectedTermNote).toHaveBeenCalledWith(textEditor);
+    expect(getRevealItemForNoteId).toHaveBeenCalledWith('note-1');
+    expect(reveal).toHaveBeenCalledWith(
+      expect.objectContaining({ dataId: 'note-1' }),
+      { expand: true, select: true, focus: false }
+    );
+    expect(editTermNote).toHaveBeenCalledWith('note-1');
   });
 });

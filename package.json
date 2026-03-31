@@ -2,7 +2,7 @@
   "name": "group-bookmarks",
   "displayName": "Group Bookmarks",
   "description": "Source Code Bookmark Group Management | 源码书签分组管理",
-  "version": "2.0.4",
+  "version": "2.0.5",
   "publisher": "groupbookmarks",
   "repository": {
     "type": "git",
@@ -205,6 +205,13 @@
           "title": "Group Bookmarks",
           "icon": "resources/icons/bookmark.svg"
         }
+      ],
+      "panel": [
+        {
+          "id": "groupBookmarksTermNotePanel",
+          "title": "Term Note Editor",
+          "icon": "resources/icons/bookmark.svg"
+        }
       ]
     },
     "views": {
@@ -216,10 +223,12 @@
         {
           "id": "groupTermNotesView",
           "name": "Term Notes"
-        },
+        }
+      ],
+      "groupBookmarksTermNotePanel": [
         {
           "id": "groupTermNotePreviewView",
-          "name": "Preview",
+          "name": "Note Editor",
           "type": "webview"
         }
       ]

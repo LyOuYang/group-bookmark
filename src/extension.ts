@@ -50,6 +50,36 @@ export function registerTermNoteTreePreviewSelectionListener(
     return disposable;
 }
 
+export function registerTermNoteSelectionRevealListener(
+    context: vscode.ExtensionContext,
+    treeView: Pick<vscode.TreeView<TermNoteTreeItem>, 'reveal'>,
+    termNoteTreeProvider: Pick<TermNoteTreeProvider, 'getRevealItemForNoteId'>,
+    termNotePreviewService: Pick<TermNotePreviewService, 'getSelectedTermNote'>,
+    termNoteSidebarPreviewProvider: Pick<TermNoteSidebarPreviewProvider, 'editTermNote'>
+): vscode.Disposable {
+    const disposable = vscode.window.onDidChangeTextEditorSelection(async event => {
+        const note = termNotePreviewService.getSelectedTermNote(event.textEditor);
+        if (!note) {
+            return;
+        }
+
+        termNoteSidebarPreviewProvider.editTermNote(note.id);
+        const revealItem = termNoteTreeProvider.getRevealItemForNoteId(note.id);
+        if (!revealItem) {
+            return;
+        }
+
+        await treeView.reveal(revealItem, {
+            expand: true,
+            select: true,
+            focus: false
+        });
+    });
+
+    context.subscriptions.push(disposable);
+    return disposable;
+}
+
 /**
  * 插件激活时调用
  */
@@ -100,7 +130,8 @@ export async function activate(context: vscode.ExtensionContext) {
             termNoteManager,
             termNoteRelationManager,
             dataManager.onDidChangeTermNotes,
-            dataManager.onDidChangeTermNoteRelations
+            dataManager.onDidChangeTermNoteRelations,
+            (noteId, content) => termNoteManager.updateContent(noteId, content)
         );
 
         context.subscriptions.push(termNoteTreeView);
@@ -133,7 +164,8 @@ export async function activate(context: vscode.ExtensionContext) {
             termNoteManager,
             termNoteGroupManager,
             termNoteRelationManager,
-            termNoteDocumentService
+            termNoteDocumentService,
+            termNoteSidebarPreviewProvider
         );
         termNoteCommandHandler.registerCommands(context);
 
@@ -144,6 +176,13 @@ export async function activate(context: vscode.ExtensionContext) {
         context.subscriptions.push(termNotePreviewService);
         registerTermNotePreviewSelectionListener(context, termNotePreviewService);
         registerTermNoteTreePreviewSelectionListener(context, termNoteTreeView, termNoteSidebarPreviewProvider);
+        registerTermNoteSelectionRevealListener(
+            context,
+            termNoteTreeView,
+            termNoteTreeProvider,
+            termNotePreviewService,
+            termNoteSidebarPreviewProvider
+        );
 
         // 初始化 DecorationManager
         const decorationManager = new DecorationManager(dataManager, groupManager, relationManager);
