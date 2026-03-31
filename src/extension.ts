@@ -21,13 +21,9 @@ import { PathUtils } from './utils/pathUtils';
 import { Logger } from './utils/logger';
 
 export function registerTermNotePreviewSelectionListener(
-    context: vscode.ExtensionContext,
-    termNotePreviewService: Pick<TermNotePreviewService, 'previewSelection'>
+    context: vscode.ExtensionContext
 ): vscode.Disposable {
-    const disposable = vscode.window.onDidChangeTextEditorSelection(event => {
-        void termNotePreviewService.previewSelection(event.textEditor);
-    });
-
+    const disposable = new vscode.Disposable(() => {});
     context.subscriptions.push(disposable);
     return disposable;
 }
@@ -55,7 +51,7 @@ export function registerTermNoteSelectionRevealListener(
     treeView: Pick<vscode.TreeView<TermNoteTreeItem>, 'reveal'>,
     termNoteTreeProvider: Pick<TermNoteTreeProvider, 'getRevealItemForNoteId'>,
     termNotePreviewService: Pick<TermNotePreviewService, 'getSelectedTermNote'>,
-    termNoteSidebarPreviewProvider: Pick<TermNoteSidebarPreviewProvider, 'editTermNote'>
+    termNoteSidebarPreviewProvider: Pick<TermNoteSidebarPreviewProvider, 'previewTermNote'>
 ): vscode.Disposable {
     const disposable = vscode.window.onDidChangeTextEditorSelection(async event => {
         const note = termNotePreviewService.getSelectedTermNote(event.textEditor);
@@ -63,7 +59,7 @@ export function registerTermNoteSelectionRevealListener(
             return;
         }
 
-        termNoteSidebarPreviewProvider.editTermNote(note.id);
+        termNoteSidebarPreviewProvider.previewTermNote(note.id);
         const revealItem = termNoteTreeProvider.getRevealItemForNoteId(note.id);
         if (!revealItem) {
             return;
@@ -174,7 +170,6 @@ export async function activate(context: vscode.ExtensionContext) {
             termNoteRelationManager
         );
         context.subscriptions.push(termNotePreviewService);
-        registerTermNotePreviewSelectionListener(context, termNotePreviewService);
         registerTermNoteTreePreviewSelectionListener(context, termNoteTreeView, termNoteSidebarPreviewProvider);
         registerTermNoteSelectionRevealListener(
             context,

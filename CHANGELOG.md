@@ -5,6 +5,11 @@ All notable changes to the **Group Bookmarks** extension will be documented in t
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.7] - 2026-03-31
+
+### Changed
+- Refined term-note selection behavior: matching terms now sync the tree and load the Note Editor in view mode by default, without triggering the automatic hover preview.
+
 ## [2.0.6] - 2026-03-31
 
 ### Changed

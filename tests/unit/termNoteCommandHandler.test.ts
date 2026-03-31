@@ -1189,27 +1189,14 @@ describe('TermNoteRelationManager', () => {
 });
 
 describe('extension term-note preview wiring', () => {
-  it('registers a selection listener that forwards the active editor to the preview service', () => {
+  it('does not register automatic hover preview wiring by default', () => {
     const previewSelection = vi.fn();
-    let selectionListener: ((event: { textEditor: unknown }) => void) | undefined;
-    mockState.window.onDidChangeTextEditorSelection.mockImplementation((listener: (event: { textEditor: unknown }) => void) => {
-      selectionListener = listener;
-      return { dispose: vi.fn() };
-    });
-
     const context = createExtensionContext();
-    registerTermNotePreviewSelectionListener(
-      asExtensionContext(context),
-      asPreviewService({ previewSelection })
-    );
+    registerTermNotePreviewSelectionListener(asExtensionContext(context));
 
-    expect(mockState.window.onDidChangeTextEditorSelection).toHaveBeenCalledTimes(1);
+    expect(mockState.window.onDidChangeTextEditorSelection).not.toHaveBeenCalled();
     expect(context.subscriptions).toHaveLength(1);
-
-    const textEditor = { id: 'editor-1' };
-    selectionListener?.({ textEditor });
-
-    expect(previewSelection).toHaveBeenCalledWith(textEditor);
+    expect(previewSelection).not.toHaveBeenCalled();
   });
 });
 
@@ -1712,9 +1699,9 @@ describe('extension term-note tree preview wiring', () => {
 });
 
 describe('extension term-note selection reveal wiring', () => {
-  it('reveals an existing selected term note in the tree and opens the panel editor without stealing focus', async () => {
+  it('reveals an existing selected term note in the tree and opens the panel in view mode without stealing focus', async () => {
     const reveal = vi.fn().mockResolvedValue(undefined);
-    const editTermNote = vi.fn();
+    const previewTermNote = vi.fn();
     const getSelectedTermNote = vi.fn().mockReturnValue(makeNote('note-1', { term: 'User Table' }));
     const getRevealItemForNoteId = vi.fn().mockReturnValue({
       type: 'term-note',
@@ -1738,7 +1725,7 @@ describe('extension term-note selection reveal wiring', () => {
         getRevealItemForNoteId,
       } as unknown as Pick<TermNoteTreeProvider, 'getRevealItemForNoteId'>,
       asPreviewService({ getSelectedTermNote }),
-      asSidebarPreviewProvider({ editTermNote })
+      asSidebarPreviewProvider({ previewTermNote })
     );
 
     const textEditor = { id: 'editor-1' };
@@ -1751,6 +1738,6 @@ describe('extension term-note selection reveal wiring', () => {
       expect.objectContaining({ dataId: 'note-1' }),
       { expand: true, select: true, focus: false }
     );
-    expect(editTermNote).toHaveBeenCalledWith('note-1');
+    expect(previewTermNote).toHaveBeenCalledWith('note-1');
   });
 });
