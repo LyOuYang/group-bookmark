@@ -136,7 +136,8 @@ export async function activate(context: vscode.ExtensionContext) {
         context.subscriptions.push(
             vscode.window.registerWebviewViewProvider(
                 'groupKeyNotePreviewView',
-                keyNoteSidebarPreviewProvider
+                keyNoteSidebarPreviewProvider,
+                { webviewOptions: { retainContextWhenHidden: true } }
             )
         );
         context.subscriptions.push(

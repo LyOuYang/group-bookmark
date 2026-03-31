@@ -322,6 +322,7 @@ function createWebviewView() {
     webview: {
       html: '',
       options: {},
+      postMessage: vi.fn().mockResolvedValue(true),
       onDidReceiveMessage: vi.fn((listener: (message: unknown) => void | Promise<void>) => {
         messageListener = listener;
         return { dispose: vi.fn() };
@@ -1283,7 +1284,7 @@ describe('package contributions for key notes', () => {
 });
 
 describe('KeyNoteSidebarPreviewProvider', () => {
-  it('renders an empty state before any key note is selected', () => {
+  it('renders an empty state before any key note is selected', async () => {
     const provider = new KeyNoteSidebarPreviewProvider(
       {
         getById: vi.fn(),
@@ -1306,11 +1307,13 @@ describe('KeyNoteSidebarPreviewProvider', () => {
     const view = createWebviewView();
 
     provider.resolveWebviewView(view as unknown as vscode.WebviewView);
+    await view.fireMessage({ type: 'ready' });
 
-    expect(view.webview.html).toContain('Select a key note');
+    const lastState = (view.webview.postMessage as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0]?.state;
+    expect(lastState?.title).toContain('Select a key note');
   });
 
-  it('renders the selected key note as a formatted markdown preview and related groups', () => {
+  it('renders the selected key note as a formatted markdown preview and related groups', async () => {
     const note = makeNote('note-1', {
       term: 'User Table',
       contentMarkdown: '# Overview\n\nUsed by **API** layer.\n\n- indexed\n- cached\n\n> Important\n\n```ts\nconst stable = true;\n```',
@@ -1340,22 +1343,23 @@ describe('KeyNoteSidebarPreviewProvider', () => {
 
     provider.resolveWebviewView(view as unknown as vscode.WebviewView);
     provider.previewKeyNote('note-1');
+    await view.fireMessage({ type: 'ready' });
 
-    expect(view.webview.html).toContain('User Table');
-    expect(view.webview.html).toContain('1. User Notes');
-    expect(view.webview.html).toContain('data-action="edit"');
-    expect(view.webview.html).toContain('<h1>Overview</h1>');
-    expect(view.webview.html).toContain('<p>Used by <strong>API</strong> layer.</p>');
-    expect(view.webview.html).toContain('<li>indexed</li>');
-    expect(view.webview.html).toContain('<li>cached</li>');
-    expect(view.webview.html).toContain('<blockquote><p>Important</p></blockquote>');
-    expect(view.webview.html).toContain('<pre><code class="language-ts">const stable = true;');
-    expect(view.webview.html).not.toContain('# Overview');
-    expect(view.webview.html).not.toContain('- indexed');
-    expect(view.webview.html).not.toContain('```ts');
+    const lastState = (view.webview.postMessage as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0]?.state;
+    expect(lastState?.title).toContain('User Table');
+    expect(lastState?.groups).toContain('1. User Notes');
+    expect(lastState?.bodyHtml).toContain('<h1>Overview</h1>');
+    expect(lastState?.bodyHtml).toContain('<p>Used by <strong>API</strong> layer.</p>');
+    expect(lastState?.bodyHtml).toContain('<li>indexed</li>');
+    expect(lastState?.bodyHtml).toContain('<li>cached</li>');
+    expect(lastState?.bodyHtml).toContain('<blockquote><p>Important</p></blockquote>');
+    expect(lastState?.bodyHtml).toContain('<pre><code class="language-ts">const stable = true;');
+    expect(lastState?.bodyHtml).not.toContain('# Overview');
+    expect(lastState?.bodyHtml).not.toContain('- indexed');
+    expect(lastState?.bodyHtml).not.toContain('```ts');
   });
 
-  it('renders markdown tables without leaking placeholder tokens', () => {
+  it('renders markdown tables without leaking placeholder tokens', async () => {
     const note = makeNote('note-1', {
       term: 'Storage Service',
       contentMarkdown: [
@@ -1388,18 +1392,20 @@ describe('KeyNoteSidebarPreviewProvider', () => {
 
     provider.resolveWebviewView(view as unknown as vscode.WebviewView);
     provider.previewKeyNote('note-1');
+    await view.fireMessage({ type: 'ready' });
 
-    expect(view.webview.html).toContain('<table');
-    expect(view.webview.html).toContain('<th>字段</th>');
-    expect(view.webview.html).toContain('<code>SERIALNO</code>');
-    expect(view.webview.html).toContain('<code>TERMNO</code>');
-    expect(view.webview.html).toContain('投机/套保标志<br>');
-    expect(view.webview.html).not.toContain('@@TERMNOTE');
-    expect(view.webview.html).not.toContain('| `SERIALNO` |');
-    expect(view.webview.html).not.toContain('&lt;br&gt;');
+    const lastState = (view.webview.postMessage as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0]?.state;
+    expect(lastState?.bodyHtml).toContain('<table');
+    expect(lastState?.bodyHtml).toContain('<th>字段</th>');
+    expect(lastState?.bodyHtml).toContain('<code>SERIALNO</code>');
+    expect(lastState?.bodyHtml).toContain('<code>TERMNO</code>');
+    expect(lastState?.bodyHtml).toContain('投机/套保标志<br>');
+    expect(lastState?.bodyHtml).not.toContain('@@TERMNOTE');
+    expect(lastState?.bodyHtml).not.toContain('| `SERIALNO` |');
+    expect(lastState?.bodyHtml).not.toContain('&lt;br&gt;');
   });
 
-  it('refreshes the selected preview when key-note data changes', () => {
+  it('refreshes the selected preview when key-note data changes', async () => {
     const keyNotesEvent = createEventHook();
     const keyNoteRelationsEvent = createEventHook();
     let currentContent = 'Old body';
@@ -1427,12 +1433,15 @@ describe('KeyNoteSidebarPreviewProvider', () => {
 
     provider.resolveWebviewView(view as unknown as vscode.WebviewView);
     provider.previewKeyNote('note-1');
-    expect(view.webview.html).toContain('<p>Old body</p>');
+    await view.fireMessage({ type: 'ready' });
+    let lastState = (view.webview.postMessage as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0]?.state;
+    expect(lastState?.bodyHtml).toContain('<p>Old body</p>');
 
     currentContent = '## Updated body';
     keyNotesEvent.fire();
 
-    expect(view.webview.html).toContain('<h2>Updated body</h2>');
+    lastState = (view.webview.postMessage as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0]?.state;
+    expect(lastState?.bodyHtml).toContain('<h2>Updated body</h2>');
   });
 
   it('switches to edit mode and saves note content from the webview', async () => {
@@ -1462,15 +1471,18 @@ describe('KeyNoteSidebarPreviewProvider', () => {
 
     provider.resolveWebviewView(view as unknown as vscode.WebviewView);
     provider.editKeyNote('note-1');
-    expect(view.webview.html).toContain('<textarea');
+    await view.fireMessage({ type: 'ready' });
+    let lastState = (view.webview.postMessage as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0]?.state;
+    expect(lastState?.mode).toBe('edit');
 
     updateContent.mockImplementation(async (_noteId: string, content: string) => {
       currentContent = content;
     });
-    await view.fireMessage({ type: 'save', content: '# Saved body' });
+    await view.fireMessage({ type: 'save', content: '# Saved body', groupId: undefined });
 
     expect(updateContent).toHaveBeenCalledWith('note-1', '# Saved body');
-    expect(view.webview.html).toContain('<h1>Saved body</h1>');
+    lastState = (view.webview.postMessage as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0]?.state;
+    expect(lastState?.bodyHtml).toContain('<h1>Saved body</h1>');
     expect(view.show).toHaveBeenCalledWith(true);
   });
 

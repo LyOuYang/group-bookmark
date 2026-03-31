@@ -246,6 +246,8 @@ export class KeyNoteSidebarPreviewProvider implements vscode.WebviewViewProvider
     private draftTerm: string | undefined;
     private isDirty = false;
     private selectionTimeout: NodeJS.Timeout | undefined;
+    // Ready handshake: true only after webview JS sends 'ready'
+    private webviewReady = false;
 
     constructor(
         private readonly keyNoteManager: Pick<KeyNoteManager, 'getById' | 'getByNormalizedTerm' | 'createOrGetKeyNote'>,
@@ -268,15 +270,16 @@ export class KeyNoteSidebarPreviewProvider implements vscode.WebviewViewProvider
 
     resolveWebviewView(webviewView: vscode.WebviewView): void {
         this.webviewView = webviewView;
-        webviewView.webview.options = {
-            enableScripts: true
-        };
+        this.webviewReady = false;   // reset — new webview context
+        webviewView.webview.options = { enableScripts: true };
         this.disposables.push(
             webviewView.webview.onDidReceiveMessage(async message => {
                 await this.handleMessage(message);
             })
         );
-        this.render();
+        // Do NOT render() here — the webview JS is not ready yet.
+        // We wait for the 'ready' message from the webview instead.
+        this.webviewView.webview.html = this.buildStaticHtml();
     }
 
     previewKeyNote(noteId: string | undefined): void {
@@ -345,62 +348,20 @@ export class KeyNoteSidebarPreviewProvider implements vscode.WebviewViewProvider
         }
     }
 
-    private render(): void {
-        if (!this.webviewView) {
-            return;
-        }
-
-        const note = this.selectedNoteId
-            ? this.keyNoteManager.getById(this.selectedNoteId)
-            : undefined;
-
-        if (!this.selectedNoteId && !this.draftTerm) {
-            this.webviewView.webview.html = this.renderHtml({
-                title: EMPTY_PREVIEW_TITLE,
-                bodyHtml: `<p>${escapeHtml(EMPTY_PREVIEW_BODY)}</p>`,
-                groups: [],
-                muted: true
-            });
-            return;
-        }
-
-        if (this.selectedNoteId && !note) {
-            this.webviewView.webview.html = this.renderHtml({
-                title: EMPTY_PREVIEW_TITLE,
-                bodyHtml: `<p>${escapeHtml(MISSING_PREVIEW_BODY)}</p>`,
-                groups: [],
-                muted: true
-            });
-            return;
-        }
-
-        const title = note ? note.term : (this.draftTerm || 'New Key Note');
-        const previewBodyHtml = note ? (renderMarkdown(note.contentMarkdown) || `<p class="muted">${escapeHtml(EMPTY_NOTE_BODY)}</p>`) : '';
-        const groups = note ? this.keyNoteRelationManager.getGroupsForKeyNote(note.id).map(group => group.displayName) : [];
-
-        this.webviewView.webview.html = this.renderHtml({
-            title: title,
-            bodyHtml: this.mode === 'edit'
-                ? this.renderEditorHtml(note?.id)
-                : this.renderPreviewHtml(previewBodyHtml),
-            groups,
-            muted: false
-        });
-    }
-
-    private syncDraftContent(): void {
-        const note = this.selectedNoteId
-            ? this.keyNoteManager.getById(this.selectedNoteId)
-            : undefined;
-        this.draftContent = note?.contentMarkdown ?? '';
-    }
 
     private async handleMessage(message: unknown): Promise<void> {
-        if (!this.selectedNoteId || !message || typeof message !== 'object' || !('type' in message)) {
+        if (!message || typeof message !== 'object' || !('type' in message)) {
             return;
         }
 
-        const typedMessage = message as { type?: string; content?: string; groupId?: string; isDirty?: boolean };
+        const typedMessage = message as { type?: string; content?: string; groupId?: string };
+
+        // Webview JS signals it has finished loading and is ready to receive state
+        if (typedMessage.type === 'ready') {
+            this.webviewReady = true;
+            void this.webviewView?.webview.postMessage({ type: 'update', state: this.buildViewState() });
+            return;
+        }
 
         if (typedMessage.type === 'toggleAutoFollow') {
             this.isAutoFollowEnabled = !this.isAutoFollowEnabled;
@@ -486,361 +447,281 @@ export class KeyNoteSidebarPreviewProvider implements vscode.WebviewViewProvider
         await vscode.commands.executeCommand(TERM_NOTE_EDITOR_PANEL_COMMAND);
     }
 
-    private renderEditorHtml(noteId: string | undefined): string {
+
+    private buildViewState(): object {
+        const note = this.selectedNoteId
+            ? this.keyNoteManager.getById(this.selectedNoteId)
+            : undefined;
+
+        if (!this.selectedNoteId && !this.draftTerm) {
+            return {
+                mode: 'empty', title: EMPTY_PREVIEW_TITLE, prefixIcon: '📝',
+                bodyHtml: `<p class="muted">${escapeHtml(EMPTY_PREVIEW_BODY)}</p>`,
+                groups: [], allGroups: [], targetGroupId: '', draftContent: '',
+                isAutoFollowEnabled: this.isAutoFollowEnabled,
+            };
+        }
+        if (this.selectedNoteId && !note) {
+            return {
+                mode: 'empty', title: EMPTY_PREVIEW_TITLE, prefixIcon: '📝',
+                bodyHtml: `<p class="muted">${escapeHtml(MISSING_PREVIEW_BODY)}</p>`,
+                groups: [], allGroups: [], targetGroupId: '', draftContent: '',
+                isAutoFollowEnabled: this.isAutoFollowEnabled,
+            };
+        }
+        const title = note ? note.term : (this.draftTerm ?? 'New Key Note');
+        const groups = note ? this.keyNoteRelationManager.getGroupsForKeyNote(note.id).map(g => g.displayName) : [];
+        const bodyHtml = note ? (renderMarkdown(note.contentMarkdown) || `<p class="muted">${escapeHtml(EMPTY_NOTE_BODY)}</p>`) : '';
         const allGroups = this.keyNoteGroupManager.getAllGroups();
         const activeGroupId = this.keyNoteGroupManager.getActiveKeyNoteGroupId();
-        const existingGroups = noteId ? this.keyNoteRelationManager.getGroupsForKeyNote(noteId) : undefined;
-        
+        const existingGroups = note ? this.keyNoteRelationManager.getGroupsForKeyNote(note.id) : undefined;
         let targetGroupId = '';
         if (existingGroups && existingGroups.length > 0) {
             targetGroupId = existingGroups[0].id;
         } else if (activeGroupId) {
             targetGroupId = activeGroupId;
         }
-
-        const optionsHtml = allGroups.map(group => 
-            `<option value="${escapeHtml(group.id)}" ${targetGroupId === group.id ? 'selected' : ''}>${escapeHtml(group.name)}</option>`
-        ).join('');
-
-        return `
-<div class="toolbar">
-    <button class="button primary" data-action="save">Save</button>
-    <button class="button" data-action="cancel">Cancel</button>
-    <select id="key-note-group" class="group-select" required>
-        <option value="" disabled ${!targetGroupId ? 'selected' : ''}>--- Select a Key Group ---</option>
-        <option value="--create-new--" class="create-option">+ Create New Group...</option>
-        ${optionsHtml}
-    </select>
-</div>
-<textarea id="key-note-editor" class="editor" spellcheck="false">${escapeHtml(this.draftContent)}</textarea>
-<div class="hint">Press Ctrl/Cmd+S or use Save to keep changes without leaving your code.</div>`;
+        return {
+            mode: this.mode,
+            title,
+            prefixIcon: this.mode === 'edit' ? '🎯' : '🔖',
+            bodyHtml,
+            groups,
+            allGroups: allGroups.map(g => ({ id: g.id, name: g.name })),
+            targetGroupId,
+            draftContent: this.draftContent,
+            isAutoFollowEnabled: this.isAutoFollowEnabled,
+        };
     }
 
-    private renderPreviewHtml(previewBodyHtml: string): string {
-        return `
-<div class="toolbar">
-    <button class="button primary" data-action="edit">Edit</button>
-</div>
-${previewBodyHtml}`;
+    private render(): void {
+        if (!this.webviewView) { return; }
+        if (!this.webviewReady) {
+            // Webview JS not yet ready — message would be lost. Skip.
+            // State will be pushed when we receive the 'ready' handshake.
+            return;
+        }
+        void this.webviewView.webview.postMessage({ type: 'update', state: this.buildViewState() });
     }
 
-    private renderHtml({
-        title,
-        bodyHtml,
-        groups,
-        muted
-    }: {
-        title: string;
-        bodyHtml: string;
-        groups: string[];
-        muted: boolean;
-    }): string {
-        const groupMarkup = groups.length > 0
-            ? `<div class="groups">${groups.map(group => `<span class="badge">${escapeHtml(group)}</span>`).join('')}</div>`
-            : '';
-        const bodyClass = muted ? 'body muted' : 'body';
+    private syncDraftContent(): void {
+        const note = this.selectedNoteId ? this.keyNoteManager.getById(this.selectedNoteId) : undefined;
+        this.draftContent = note?.contentMarkdown ?? '';
+    }
 
+    private buildStaticHtml(): string {
         return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        :root {
-            color-scheme: light dark;
-        }
-
-        html, body {
-            height: 100%;
-        }
-
-        body {
-            margin: 0;
-            font-family: var(--vscode-font-family);
-            color: var(--vscode-foreground);
-            background: var(--vscode-sideBar-background);
-        }
-
-        .shell {
-            box-sizing: border-box;
-            min-height: 100%;
-            padding: 12px;
-            display: grid;
-            gap: 10px;
-            grid-template-rows: auto auto minmax(0, 1fr) auto;
-        }
-
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: nowrap;
-        }
-
-        .title {
-            margin: 0;
-            font-size: 14px;
-            font-weight: 600;
-            line-height: 1.4;
-        }
-
-        .groups {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
-        }
-
-        .badge {
-            padding: 2px 8px;
-            border-radius: 999px;
-            background: var(--vscode-badge-background);
-            color: var(--vscode-badge-foreground);
-            font-size: 11px;
-            line-height: 18px;
-        }
-
-        .body {
-            line-height: 1.5;
-            font-size: 12px;
-            padding: 12px;
-            border-radius: 8px;
-            background: color-mix(in srgb, var(--vscode-editor-background) 88%, transparent);
-            border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 65%, transparent);
-            overflow: auto;
-            min-height: 0;
-        }
-
-        .body > :first-child {
-            margin-top: 0;
-        }
-
-        .body > :last-child {
-            margin-bottom: 0;
-        }
-
-        .body h1,
-        .body h2,
-        .body h3,
-        .body h4,
-        .body h5,
-        .body h6 {
-            line-height: 1.3;
-            margin: 1.1em 0 0.5em;
-        }
-
-        .body h1 {
-            font-size: 1.4em;
-        }
-
-        .body h2 {
-            font-size: 1.25em;
-        }
-
-        .body h3 {
-            font-size: 1.12em;
-        }
-
-        .body p,
-        .body ul,
-        .body ol,
-        .body blockquote,
-        .body pre,
-        .body table {
-            margin: 0 0 0.9em;
-        }
-
-        .body ul,
-        .body ol {
-            padding-left: 1.4em;
-        }
-
-        .body li + li {
-            margin-top: 0.25em;
-        }
-
-        .body blockquote {
-            margin-left: 0;
-            padding-left: 12px;
-            border-left: 3px solid var(--vscode-textLink-foreground);
-            color: var(--vscode-descriptionForeground);
-        }
-
-        .body code {
-            font-family: var(--vscode-editor-font-family, var(--vscode-font-family));
-            font-size: 0.95em;
-            padding: 0.1em 0.35em;
-            border-radius: 4px;
-            background: color-mix(in srgb, var(--vscode-textCodeBlock-background) 75%, transparent);
-        }
-
-        .body pre {
-            overflow: auto;
-            padding: 10px 12px;
-            border-radius: 8px;
-            background: var(--vscode-textCodeBlock-background);
-        }
-
-        .body pre code {
-            display: block;
-            padding: 0;
-            background: transparent;
-            white-space: pre;
-        }
-
-        .body table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .body th,
-        .body td {
-            padding: 8px 10px;
-            border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 80%, transparent);
-            text-align: left;
-            vertical-align: top;
-        }
-
-        .body th {
-            font-weight: 600;
-            background: color-mix(in srgb, var(--vscode-editor-background) 70%, transparent);
-        }
-
-        .body a,
-        .body .link-text {
+        :root { color-scheme: light dark; }
+        html, body { height: 100%; margin: 0; }
+        body { font-family: var(--vscode-font-family); color: var(--vscode-foreground); background: var(--vscode-sideBar-background); }
+        .shell { box-sizing: border-box; min-height: 100%; padding: 16px 12px; display: flex; flex-direction: column; gap: 12px; }
+        .shell.animating { animation: fadeIn 0.15s ease-out; }
+        @keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
+        .header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+        .hero-title {
+            margin: 0; font-size: 16px; font-weight: 700;
+            font-family: var(--vscode-editor-font-family);
+            background: color-mix(in srgb, var(--vscode-editorAction-activeBackground) 15%, transparent);
             color: var(--vscode-textLink-foreground);
-            text-decoration: none;
+            padding: 4px 8px; border-radius: 4px; word-break: break-all;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1); flex: 1; min-width: 0;
         }
-
-        .toolbar {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 10px;
-        }
-
-        .button {
-            border: 1px solid color-mix(in srgb, var(--vscode-button-border, var(--vscode-panel-border)) 80%, transparent);
+        .auto-follow-btn {
+            flex-shrink: 0;
+            border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 80%, transparent);
             background: var(--vscode-button-secondaryBackground, transparent);
             color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
-            border-radius: 6px;
-            padding: 6px 10px;
-            cursor: pointer;
+            border-radius: 6px; padding: 2px 6px; font-size: 10px;
+            opacity: 0.85; cursor: pointer; white-space: nowrap;
         }
-
-        .button.small-button {
-            padding: 2px 6px;
-            font-size: 10px;
-            opacity: 0.85;
-        }
-
-        .button.small-button:hover {
-            opacity: 1;
-        }
-
-        .button.primary {
-            background: var(--vscode-button-background);
-            color: var(--vscode-button-foreground);
-        }
-
-        .editor {
-            width: 100%;
-            min-height: 260px;
-            resize: vertical;
-            box-sizing: border-box;
-            border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 80%, transparent);
-            border-radius: 8px;
-            background: var(--vscode-input-background);
-            color: var(--vscode-input-foreground);
-            padding: 10px 12px;
-            font-family: var(--vscode-editor-font-family, var(--vscode-font-family));
-            font-size: 12px;
-            line-height: 1.5;
-        }
-
-        .group-select {
-            background: var(--vscode-dropdown-background);
-            color: var(--vscode-dropdown-foreground);
-            border: 1px solid var(--vscode-dropdown-border);
-            padding: 4px 8px;
-            border-radius: 4px;
-            outline: none;
-            cursor: pointer;
-            margin-left: auto; /* push to the right */
-        }
-
-        .muted {
-            color: var(--vscode-descriptionForeground);
-        }
-
-        .hint {
-            font-size: 11px;
-            color: var(--vscode-descriptionForeground);
-        }
+        .auto-follow-btn:hover { opacity: 1; }
+        .groups { display: flex; flex-wrap: wrap; gap: 6px; }
+        .badge { padding: 2px 8px; border-radius: 999px; background: var(--vscode-badge-background); color: var(--vscode-badge-foreground); font-size: 11px; line-height: 18px; }
+        .preview-layout { padding-top: 4px; }
+        .preview-actions { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+        .icon-btn { background: transparent; border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 40%, transparent); color: var(--vscode-descriptionForeground); padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; transition: all 0.2s; }
+        .icon-btn:hover { color: var(--vscode-foreground); background: var(--vscode-toolbar-hoverBackground); }
+        .edit-layout { display: flex; flex-direction: column; gap: 12px; flex-grow: 1; }
+        .waterfall-select { width: 100%; padding: 8px; font-size: 13px; border-radius: 4px; border: 1px solid var(--vscode-dropdown-border); background: var(--vscode-dropdown-background); color: var(--vscode-dropdown-foreground); outline: none; cursor: pointer; box-sizing: border-box; }
+        .waterfall-editor { width: 100%; min-height: 220px; padding: 12px; resize: vertical; border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 80%, transparent); border-left: 3px solid transparent; border-radius: 6px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); font-family: var(--vscode-editor-font-family, var(--vscode-font-family)); font-size: 13px; line-height: 1.6; transition: border-color 0.15s; box-sizing: border-box; }
+        .waterfall-editor:focus { outline: none; border-color: var(--vscode-focusBorder); border-left-color: var(--vscode-focusBorder); }
+        .bottom-toolbar { display: flex; gap: 8px; margin-top: 4px; }
+        .save-btn { flex-grow: 1; font-weight: 600; padding: 8px 16px; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; border-radius: 6px; cursor: pointer; transition: opacity 0.2s; }
+        .save-btn:hover { opacity: 0.9; }
+        .cancel-btn { background: transparent; border: none; color: var(--vscode-descriptionForeground); padding: 8px 12px; cursor: pointer; border-radius: 6px; }
+        .cancel-btn:hover { color: var(--vscode-foreground); background: var(--vscode-toolbar-hoverBackground); }
+        .markdown-body { line-height: 1.6; font-size: 13px; color: var(--vscode-foreground); overflow: auto; }
+        .markdown-body > :first-child { margin-top: 0; }
+        .markdown-body > :last-child { margin-bottom: 0; }
+        .markdown-body h1,.markdown-body h2,.markdown-body h3,.markdown-body h4,.markdown-body h5,.markdown-body h6 { line-height: 1.3; margin: 1.1em 0 0.5em; }
+        .markdown-body h1 { font-size: 1.4em; } .markdown-body h2 { font-size: 1.25em; } .markdown-body h3 { font-size: 1.12em; }
+        .markdown-body p,.markdown-body ul,.markdown-body ol,.markdown-body blockquote,.markdown-body pre,.markdown-body table { margin: 0 0 0.9em; }
+        .markdown-body ul,.markdown-body ol { padding-left: 1.4em; }
+        .markdown-body li + li { margin-top: 0.25em; }
+        .markdown-body blockquote { margin-left: 0; padding-left: 12px; border-left: 3px solid var(--vscode-textLink-foreground); color: var(--vscode-descriptionForeground); }
+        .markdown-body code { font-family: var(--vscode-editor-font-family, var(--vscode-font-family)); font-size: 0.95em; padding: 0.1em 0.35em; border-radius: 4px; background: color-mix(in srgb, var(--vscode-textCodeBlock-background) 75%, transparent); }
+        .markdown-body pre { overflow: auto; padding: 10px 12px; border-radius: 8px; background: var(--vscode-textCodeBlock-background); }
+        .markdown-body pre code { display: block; padding: 0; background: transparent; white-space: pre; }
+        .markdown-body table { width: 100%; border-collapse: collapse; }
+        .markdown-body th,.markdown-body td { padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 80%, transparent); text-align: left; vertical-align: top; }
+        .markdown-body th { font-weight: 600; background: color-mix(in srgb, var(--vscode-editor-background) 70%, transparent); }
+        .markdown-body a,.markdown-body .link-text { color: var(--vscode-textLink-foreground); text-decoration: none; }
+        .muted { color: var(--vscode-descriptionForeground); }
+        .hint { font-size: 11px; color: var(--vscode-descriptionForeground); }
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
-    <div class="shell">
+    <div class="shell" id="shell">
         <div class="header">
-            <h3 class="title">${escapeHtml(title)}</h3>
-            <button class="button small-button" data-action="toggleAutoFollow" title="Auto Focus from Editor Selection">${this.isAutoFollowEnabled ? '🔗 Auto Follow: ON' : 'Auto Follow: OFF'}</button>
+            <h3 class="hero-title" id="hero-title">📝 Key Note</h3>
+            <button class="auto-follow-btn" id="auto-follow-btn" title="Toggle auto-follow">🔗 Auto Follow: ON</button>
         </div>
-        ${groupMarkup}
-        <div class="${bodyClass}">${bodyHtml}</div>
+        <div class="groups hidden" id="groups-container"></div>
+
+        <div id="preview-section" class="preview-layout hidden">
+            <div class="preview-actions"><button class="icon-btn" id="edit-btn">✏️ Edit</button></div>
+            <div class="markdown-body" id="preview-body"></div>
+        </div>
+
+        <div id="edit-section" class="edit-layout hidden">
+            <select id="group-select" class="waterfall-select"></select>
+            <textarea id="editor" class="waterfall-editor" spellcheck="false" placeholder="Write your note down..."></textarea>
+            <div class="bottom-toolbar">
+                <button class="save-btn" id="save-btn">✅ Save Changes (Ctrl+S)</button>
+                <button class="cancel-btn" id="cancel-btn">Cancel</button>
+            </div>
+        </div>
+
+        <div id="empty-section" class="hidden">
+            <div class="markdown-body" id="empty-body"></div>
+        </div>
         <div class="hint">Use Open Note when you need the note in a standalone markdown tab.</div>
     </div>
     <script>
         const vscode = acquireVsCodeApi();
-        const editor = document.getElementById('key-note-editor');
-        const select = document.getElementById('key-note-group');
-        
-        if (editor) {
-            editor.addEventListener('input', () => {
-                vscode.postMessage({ type: 'dirty' });
-            });
-        }
-        
-        if (select) {
-            let previousValue = select.value;
-            select.addEventListener('change', (e) => {
-                if (e.target.value === '--create-new--') {
-                    vscode.postMessage({ type: 'requestCreateGroup' });
-                    e.target.value = previousValue; // Revert visually until re-render
-                } else {
-                    previousValue = e.target.value;
-                }
-            });
-        }
+        const shell = document.getElementById('shell');
+        const heroTitle = document.getElementById('hero-title');
+        const autoFollowBtn = document.getElementById('auto-follow-btn');
+        const groupsContainer = document.getElementById('groups-container');
+        const previewSection = document.getElementById('preview-section');
+        const previewBody = document.getElementById('preview-body');
+        const editSection = document.getElementById('edit-section');
+        const groupSelect = document.getElementById('group-select');
+        const editorEl = document.getElementById('editor');
+        const emptySection = document.getElementById('empty-section');
+        const emptyBody = document.getElementById('empty-body');
+        const editBtn = document.getElementById('edit-btn');
+        const saveBtn = document.getElementById('save-btn');
+        const cancelBtn = document.getElementById('cancel-btn');
 
-        const save = () => {
-            if (!editor) {
-                return;
-            }
-            if (select && !select.value) {
-                alert('Please select a key group before saving.');
-                return;
-            }
-            vscode.postMessage({
-                type: 'save',
-                content: editor.value,
-                groupId: select ? select.value : undefined
-            });
-        };
+        // clientDirty prevents auto-follow from switching views while user is typing
+        let clientDirty = false;
+        let prevTitle = null;
+        let prevMode = null;
 
-        document.querySelectorAll('[data-action]').forEach(button => {
-            button.addEventListener('click', () => {
-                const action = button.getAttribute('data-action');
-                if (action === 'save') {
-                    save();
-                    return;
-                }
-                vscode.postMessage({ type: action });
-            });
+        window.addEventListener('message', event => {
+            const msg = event.data;
+            if (!msg || msg.type !== 'update') { return; }
+            applyState(msg.state);
         });
 
-        window.addEventListener('keydown', event => {
-            if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
-                event.preventDefault();
-                save();
+        function applyState(state) {
+            if (prevTitle !== state.title || prevMode !== state.mode) {
+                shell.classList.remove('animating');
+                void shell.offsetWidth;
+                shell.classList.add('animating');
             }
+            prevTitle = state.title;
+            prevMode = state.mode;
+
+            heroTitle.textContent = state.prefixIcon + ' ' + state.title;
+            autoFollowBtn.textContent = state.isAutoFollowEnabled ? '🔗 Auto Follow: ON' : 'Auto Follow: OFF';
+
+            if (state.groups && state.groups.length > 0) {
+                groupsContainer.innerHTML = state.groups.map(g => '<span class="badge">' + escHtml(g) + '</span>').join('');
+                groupsContainer.classList.remove('hidden');
+            } else {
+                groupsContainer.innerHTML = '';
+                groupsContainer.classList.add('hidden');
+            }
+
+            previewSection.classList.add('hidden');
+            editSection.classList.add('hidden');
+            emptySection.classList.add('hidden');
+
+            if (state.mode === 'preview') {
+                previewSection.classList.remove('hidden');
+                previewBody.innerHTML = state.bodyHtml;
+                clientDirty = false;
+            } else if (state.mode === 'edit') {
+                editSection.classList.remove('hidden');
+                rebuildGroupSelect(state.allGroups, state.targetGroupId);
+                if (!clientDirty) { editorEl.value = state.draftContent; }
+            } else {
+                emptySection.classList.remove('hidden');
+                emptyBody.innerHTML = state.bodyHtml;
+                clientDirty = false;
+            }
+        }
+
+        function rebuildGroupSelect(allGroups, targetGroupId) {
+            const currentVal = groupSelect.value;
+            groupSelect.innerHTML = '';
+            const ph = document.createElement('option');
+            ph.value = ''; ph.disabled = true; ph.selected = !targetGroupId;
+            ph.textContent = '--- Select a Key Group ---';
+            groupSelect.appendChild(ph);
+            const cn = document.createElement('option');
+            cn.value = '--create-new--'; cn.textContent = '+ Create New Group...';
+            groupSelect.appendChild(cn);
+            allGroups.forEach(g => {
+                const opt = document.createElement('option');
+                opt.value = g.id; opt.textContent = '\uD83D\uDDC2\uFE0F ' + g.name; opt.selected = g.id === targetGroupId;
+                groupSelect.appendChild(opt);
+            });
+            if (currentVal && [...groupSelect.options].some(o => o.value === currentVal)) {
+                groupSelect.value = currentVal;
+            }
+        }
+
+        function escHtml(str) {
+            return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        }
+
+        autoFollowBtn.addEventListener('click', () => { vscode.postMessage({ type: 'toggleAutoFollow' }); });
+        editBtn.addEventListener('click', () => { vscode.postMessage({ type: 'edit' }); });
+        editorEl.addEventListener('input', () => {
+            if (!clientDirty) { clientDirty = true; vscode.postMessage({ type: 'dirty' }); }
+        });
+        let prevGroupValue = '';
+        groupSelect.addEventListener('change', () => {
+            if (groupSelect.value === '--create-new--') {
+                vscode.postMessage({ type: 'requestCreateGroup' });
+                groupSelect.value = prevGroupValue;
+            } else { prevGroupValue = groupSelect.value; }
+        });
+        function doSave() {
+            if (!groupSelect.value || groupSelect.value === '--create-new--') {
+                alert('Please select a key group before saving.'); return;
+            }
+            clientDirty = false;
+            vscode.postMessage({ type: 'save', content: editorEl.value, groupId: groupSelect.value });
+        }
+        saveBtn.addEventListener('click', doSave);
+        cancelBtn.addEventListener('click', () => { clientDirty = false; vscode.postMessage({ type: 'cancel' }); });
+        window.addEventListener('keydown', e => {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); doSave(); }
+        });
+
+        // Signal to the extension that we are ready to receive the state
+        window.addEventListener('load', () => {
+            vscode.postMessage({ type: 'ready' });
         });
     </script>
 </body>
