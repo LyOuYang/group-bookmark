@@ -36,6 +36,8 @@ export class TermNoteCommandHandler {
             vscode.commands.registerCommand('groupBookmarks.addTermNoteFromSelection', () => this.addTermNoteFromSelection()),
             vscode.commands.registerCommand('groupBookmarks.openTermNote', (item: TermNoteTreeItemContext) => this.openTermNote(item)),
             vscode.commands.registerCommand('groupBookmarks.createTermNoteGroup', () => this.createTermNoteGroup()),
+            vscode.commands.registerCommand('groupBookmarks.renameTermNoteGroup', (item: TermNoteTreeItemContext) => this.renameTermNoteGroup(item)),
+            vscode.commands.registerCommand('groupBookmarks.deleteTermNoteGroup', (item: TermNoteTreeItemContext) => this.deleteTermNoteGroup(item)),
             vscode.commands.registerCommand('groupBookmarks.setActiveTermNoteGroup', (item: TermNoteTreeItemContext) => this.setActiveTermNoteGroup(item)),
             vscode.commands.registerCommand('groupBookmarks.removeTermNoteFromGroup', (item: TermNoteTreeItemContext) => this.removeTermNoteFromGroup(item)),
             vscode.commands.registerCommand('groupBookmarks.deleteTermNote', (item: TermNoteTreeItemContext) => this.deleteTermNote(item)),
@@ -85,7 +87,21 @@ export class TermNoteCommandHandler {
         }
 
         try {
-            await this.termNoteGroupManager.setActiveTermNoteGroupId(item.dataId);
+            const group = this.termNoteGroupManager.getGroupById(item.dataId);
+            if (!group) {
+                vscode.window.showWarningMessage('Invalid term-note group');
+                return;
+            }
+
+            const activeGroupId = this.termNoteGroupManager.getActiveTermNoteGroupId();
+            if (activeGroupId === group.id) {
+                await this.termNoteGroupManager.setActiveTermNoteGroupId(undefined);
+                vscode.window.showInformationMessage('Active term-note group cleared');
+                return;
+            }
+
+            await this.termNoteGroupManager.setActiveTermNoteGroupId(group.id);
+            vscode.window.showInformationMessage(`Active term-note group set to "${group.name}"`);
         } catch (error) {
             vscode.window.showErrorMessage(
                 `Failed to set active term-note group: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -116,6 +132,68 @@ export class TermNoteCommandHandler {
                 `Failed to create term-note group: ${error instanceof Error ? error.message : 'Unknown error'}`
             );
             return undefined;
+        }
+    }
+
+    async renameTermNoteGroup(item: TermNoteTreeItemContext): Promise<void> {
+        if (!item?.dataId) {
+            vscode.window.showErrorMessage('Invalid term-note group');
+            return;
+        }
+
+        const group = this.termNoteGroupManager.getGroupById(item.dataId);
+        if (!group) {
+            return;
+        }
+
+        const newName = await vscode.window.showInputBox({
+            prompt: 'Enter new group name',
+            value: group.name
+        });
+
+        if (!newName || newName === group.name) {
+            return;
+        }
+
+        try {
+            await this.termNoteGroupManager.renameGroup(group.id, newName);
+            vscode.window.showInformationMessage(`Group renamed to "${newName}"`);
+        } catch (error) {
+            vscode.window.showErrorMessage(
+                `Failed to rename term-note group: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
+        }
+    }
+
+    async deleteTermNoteGroup(item: TermNoteTreeItemContext): Promise<void> {
+        if (!item?.dataId) {
+            vscode.window.showErrorMessage('Invalid term-note group');
+            return;
+        }
+
+        const group = this.termNoteGroupManager.getGroupById(item.dataId);
+        if (!group) {
+            return;
+        }
+
+        const termNoteCount = this.termNoteRelationManager.getRelationsInGroup(group.id).length;
+        const confirm = await vscode.window.showWarningMessage(
+            `Delete group "${group.name}" with ${termNoteCount} term notes?`,
+            'Delete',
+            'Cancel'
+        );
+
+        if (confirm !== 'Delete') {
+            return;
+        }
+
+        try {
+            await this.termNoteGroupManager.deleteGroup(group.id);
+            vscode.window.showInformationMessage(`Group "${group.name}" deleted`);
+        } catch (error) {
+            vscode.window.showErrorMessage(
+                `Failed to delete term-note group: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
         }
     }
 

@@ -42,6 +42,7 @@ const mockState = vi.hoisted(() => ({
     onDidChangeTextEditorSelection: vi.fn(),
     showQuickPick: vi.fn().mockResolvedValue(undefined),
     showInputBox: vi.fn().mockResolvedValue(undefined),
+    showInformationMessage: vi.fn().mockResolvedValue(undefined),
     showWarningMessage: vi.fn().mockResolvedValue(undefined),
     showErrorMessage: vi.fn().mockResolvedValue(undefined),
     showTextDocument: vi.fn().mockResolvedValue(undefined),
@@ -94,11 +95,23 @@ vi.mock('vscode', () => {
     contextValue?: string;
     collapsibleState: number;
     command?: unknown;
+    iconPath?: unknown;
 
     constructor(label: string, collapsibleState: number) {
       this.label = label;
       this.collapsibleState = collapsibleState;
     }
+  }
+
+  class MockThemeColor {
+    constructor(public readonly id: string) {}
+  }
+
+  class MockThemeIcon {
+    constructor(
+      public readonly id: string,
+      public readonly color?: MockThemeColor
+    ) {}
   }
 
   class MockDisposable {
@@ -148,6 +161,8 @@ vi.mock('vscode', () => {
   return {
     EventEmitter: MockEventEmitter,
     TreeItem: MockTreeItem,
+    ThemeColor: MockThemeColor,
+    ThemeIcon: MockThemeIcon,
     Disposable: MockDisposable,
     MarkdownString: MockMarkdownString,
     Uri: MockUri,
@@ -223,6 +238,7 @@ afterEach(() => {
   vi.clearAllMocks();
   mockState.window.showQuickPick.mockReset().mockResolvedValue(undefined);
   mockState.window.showInputBox.mockReset().mockResolvedValue(undefined);
+  mockState.window.showInformationMessage.mockReset().mockResolvedValue(undefined);
   mockState.window.showWarningMessage.mockReset().mockResolvedValue(undefined);
   mockState.window.showErrorMessage.mockReset().mockResolvedValue(undefined);
   mockState.window.showTextDocument.mockReset().mockResolvedValue(undefined);
@@ -348,6 +364,14 @@ describe('TermNoteCommandHandler', () => {
       expect.any(Function)
     );
     expect(mockState.commands.registerCommand).toHaveBeenCalledWith(
+      'groupBookmarks.renameTermNoteGroup',
+      expect.any(Function)
+    );
+    expect(mockState.commands.registerCommand).toHaveBeenCalledWith(
+      'groupBookmarks.deleteTermNoteGroup',
+      expect.any(Function)
+    );
+    expect(mockState.commands.registerCommand).toHaveBeenCalledWith(
       'groupBookmarks.removeTermNoteFromGroup',
       expect.any(Function)
     );
@@ -363,7 +387,7 @@ describe('TermNoteCommandHandler', () => {
       'groupBookmarks.setActiveTermNoteGroup',
       expect.any(Function)
     );
-    expect(context.subscriptions).toHaveLength(7);
+    expect(context.subscriptions).toHaveLength(9);
   });
 
   it('opens the custom term-note document after creating or finding the note when no panel editor is available', async () => {
@@ -845,14 +869,15 @@ describe('TermNoteCommandHandler', () => {
     expect(relationManager.addTermNoteToGroup).toHaveBeenCalledWith('note-1', 'group-3');
   });
 
-  it('sets the selected term-note group as active', async () => {
+  it('sets the selected term-note group as active and reports it', async () => {
+    const group = makeGroup('group-2', { displayName: '2. API Notes', name: 'API Notes' });
     const termNoteManager = {
       createOrGetTermNote: vi.fn(),
       deleteTermNote: vi.fn(),
     };
     const termNoteGroupManager = {
-      getActiveTermNoteGroupId: vi.fn(),
-      getGroupById: vi.fn(),
+      getActiveTermNoteGroupId: vi.fn().mockReturnValue(undefined),
+      getGroupById: vi.fn().mockReturnValue(group),
       getAllGroups: vi.fn().mockReturnValue([]),
       setActiveTermNoteGroupId: vi.fn().mockResolvedValue(undefined),
     };
@@ -870,12 +895,121 @@ describe('TermNoteCommandHandler', () => {
     );
 
     await handler.setActiveTermNoteGroup({
-      dataId: 'group-2',
-      label: '2. API Notes',
+      dataId: group.id,
+      label: group.displayName,
     } as TermNoteTreeItemLike);
 
-    expect(termNoteGroupManager.setActiveTermNoteGroupId).toHaveBeenCalledWith('group-2');
+    expect(termNoteGroupManager.setActiveTermNoteGroupId).toHaveBeenCalledWith(group.id);
+    expect(mockState.window.showInformationMessage).toHaveBeenCalledWith(
+      'Active term-note group set to "API Notes"'
+    );
     expect(mockState.window.showErrorMessage).not.toHaveBeenCalled();
+  });
+
+  it('toggles the active term-note group off when the active group is selected again', async () => {
+    const group = makeGroup('group-2', { displayName: '2. API Notes', name: 'API Notes' });
+    const termNoteGroupManager = {
+      getActiveTermNoteGroupId: vi.fn().mockReturnValue(group.id),
+      getGroupById: vi.fn().mockReturnValue(group),
+      getAllGroups: vi.fn().mockReturnValue([]),
+      setActiveTermNoteGroupId: vi.fn().mockResolvedValue(undefined),
+    };
+    const handler = new TermNoteCommandHandler(
+      asTermNoteManager({ createOrGetTermNote: vi.fn(), deleteTermNote: vi.fn() }),
+      asTermNoteGroupManager(termNoteGroupManager),
+      asTermNoteRelationManager({
+        addTermNoteToGroup: vi.fn(),
+        removeTermNoteFromGroup: vi.fn(),
+        deleteTermNoteEverywhere: vi.fn(),
+        getGroupsForTermNote: vi.fn().mockReturnValue([]),
+      }),
+      asTermNoteDocumentService({ openNoteDocument: vi.fn() })
+    );
+
+    await handler.setActiveTermNoteGroup({
+      dataId: group.id,
+      label: group.displayName,
+    } as TermNoteTreeItemLike);
+
+    expect(termNoteGroupManager.setActiveTermNoteGroupId).toHaveBeenCalledWith(undefined);
+    expect(mockState.window.showInformationMessage).toHaveBeenCalledWith('Active term-note group cleared');
+  });
+
+  it('renames a term-note group using the bookmark group prompt and success message pattern', async () => {
+    const group = makeGroup('group-2', { displayName: '2. API Notes', name: 'API Notes' });
+    const termNoteGroupManager = {
+      getActiveTermNoteGroupId: vi.fn(),
+      getGroupById: vi.fn().mockReturnValue(group),
+      getAllGroups: vi.fn().mockReturnValue([group]),
+      renameGroup: vi.fn().mockResolvedValue(undefined),
+    };
+    mockState.window.showInputBox.mockResolvedValue('Reference Notes');
+
+    const handler = new TermNoteCommandHandler(
+      asTermNoteManager({ createOrGetTermNote: vi.fn(), deleteTermNote: vi.fn() }),
+      asTermNoteGroupManager(termNoteGroupManager),
+      asTermNoteRelationManager({
+        addTermNoteToGroup: vi.fn(),
+        removeTermNoteFromGroup: vi.fn(),
+        deleteTermNoteEverywhere: vi.fn(),
+        getGroupsForTermNote: vi.fn().mockReturnValue([]),
+        getRelationsInGroup: vi.fn().mockReturnValue([]),
+      }),
+      asTermNoteDocumentService({ openNoteDocument: vi.fn() })
+    );
+
+    await handler.renameTermNoteGroup({
+      dataId: group.id,
+      label: group.displayName,
+    } as TermNoteTreeItemLike);
+
+    expect(mockState.window.showInputBox).toHaveBeenCalledWith({
+      prompt: 'Enter new group name',
+      value: group.name,
+    });
+    expect(termNoteGroupManager.renameGroup).toHaveBeenCalledWith(group.id, 'Reference Notes');
+    expect(mockState.window.showInformationMessage).toHaveBeenCalledWith('Group renamed to "Reference Notes"');
+  });
+
+  it('confirms before deleting a term-note group and reports success', async () => {
+    const group = makeGroup('group-2', { displayName: '2. API Notes', name: 'API Notes' });
+    const termNoteGroupManager = {
+      getActiveTermNoteGroupId: vi.fn(),
+      getGroupById: vi.fn().mockReturnValue(group),
+      getAllGroups: vi.fn().mockReturnValue([group]),
+      deleteGroup: vi.fn().mockResolvedValue(undefined),
+    };
+    const relationManager = {
+      addTermNoteToGroup: vi.fn(),
+      removeTermNoteFromGroup: vi.fn(),
+      deleteTermNoteEverywhere: vi.fn(),
+      getGroupsForTermNote: vi.fn().mockReturnValue([]),
+      getRelationsInGroup: vi.fn().mockReturnValue([
+        makeRelation('rel-1', 'note-1', group.id),
+        makeRelation('rel-2', 'note-2', group.id),
+      ]),
+    };
+    mockState.window.showWarningMessage.mockResolvedValue('Delete');
+
+    const handler = new TermNoteCommandHandler(
+      asTermNoteManager({ createOrGetTermNote: vi.fn(), deleteTermNote: vi.fn() }),
+      asTermNoteGroupManager(termNoteGroupManager),
+      asTermNoteRelationManager(relationManager),
+      asTermNoteDocumentService({ openNoteDocument: vi.fn() })
+    );
+
+    await handler.deleteTermNoteGroup({
+      dataId: group.id,
+      label: group.displayName,
+    } as TermNoteTreeItemLike);
+
+    expect(mockState.window.showWarningMessage).toHaveBeenCalledWith(
+      'Delete group "API Notes" with 2 term notes?',
+      'Delete',
+      'Cancel'
+    );
+    expect(termNoteGroupManager.deleteGroup).toHaveBeenCalledWith(group.id);
+    expect(mockState.window.showInformationMessage).toHaveBeenCalledWith('Group "API Notes" deleted');
   });
 
   it('creates a term-note group from the dedicated command and sets it active', async () => {
@@ -1189,6 +1323,35 @@ describe('TermNoteTreeProvider', () => {
       dataId: apiGroup.id,
     }));
   });
+
+  it('shows the active term-note group with the same pinned icon style as bookmark groups', () => {
+    const apiGroup = makeGroup('group-2', { displayName: '2. API Notes', name: 'API Notes' });
+    const provider = new TermNoteTreeProvider(
+      asDataManager({
+        onDidChangeTermNotes: vi.fn(),
+        onDidChangeTermNoteGroups: vi.fn(),
+        onDidChangeTermNoteRelations: vi.fn(),
+        getTermNote: vi.fn(),
+      }),
+      asTermNoteGroupManager({
+        getAllGroups: vi.fn().mockReturnValue([apiGroup]),
+        getActiveTermNoteGroupId: vi.fn().mockReturnValue(apiGroup.id),
+      }),
+      asTermNoteRelationManager({
+        getRelationsInGroup: vi.fn().mockReturnValue([]),
+      })
+    );
+
+    const [item] = provider.getChildren();
+
+    expect(item.description).toBeUndefined();
+    expect(item.iconPath).toEqual(expect.objectContaining({
+      id: 'pinned',
+      color: expect.objectContaining({
+        id: 'list.highlightForeground',
+      }),
+    }));
+  });
 });
 
 describe('TermNoteDocumentService', () => {
@@ -1238,6 +1401,8 @@ describe('package contributions for term notes', () => {
     expect(commands.some(item => item.command === 'groupBookmarks.addTermNoteFromSelection')).toBe(true);
     expect(commands.some(item => item.command === 'groupBookmarks.openTermNote')).toBe(true);
     expect(commands.some(item => item.command === 'groupBookmarks.createTermNoteGroup')).toBe(true);
+    expect(commands.some(item => item.command === 'groupBookmarks.renameTermNoteGroup')).toBe(true);
+    expect(commands.some(item => item.command === 'groupBookmarks.deleteTermNoteGroup')).toBe(true);
     expect(commands.some(item => item.command === 'groupBookmarks.removeTermNoteFromGroup')).toBe(true);
     expect(commands.some(item => item.command === 'groupBookmarks.deleteTermNote')).toBe(true);
     expect(commands.some(item => item.command === 'groupBookmarks.addExistingTermNoteToGroup')).toBe(true);
@@ -1259,47 +1424,78 @@ describe('package contributions for term notes', () => {
     ]));
   });
 
-  it('adds an editor context menu entry for adding term notes from selection', () => {
+  it('uses consistent but distinct command metadata for adding bookmarks and term notes from the editor context menu', () => {
     const packageJsonPath = path.resolve(__dirname, '..', '..', 'package.json');
     const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
-    const commands = packageJson.contributes.commands as Array<{ command: string; title?: string; category?: string }>;
+    const commands = packageJson.contributes.commands as Array<{ command: string; title?: string; category?: string; icon?: string }>;
     const editorContextMenus = packageJson.contributes.menus['editor/context'] as Array<{ command: string }>;
+    const bookmarkMenuEntry = editorContextMenus.find(item => item.command === 'groupBookmarks.addBookmarkMenu') as
+      | { command: string; group?: string; when?: string }
+      | undefined;
     const menuEntry = editorContextMenus.find(item => item.command === 'groupBookmarks.addTermNoteFromSelection') as
       | { command: string; group?: string; when?: string }
       | undefined;
+    const bookmarkCommandEntry = commands.find(item => item.command === 'groupBookmarks.addBookmarkMenu');
     const commandEntry = commands.find(item => item.command === 'groupBookmarks.addTermNoteFromSelection');
 
+    expect(bookmarkCommandEntry?.title).toBe('Add Group Bookmark');
+    expect(bookmarkCommandEntry?.category).toBe('Group Bookmarks');
+    expect(bookmarkCommandEntry?.icon).toBe('$(bookmark)');
     expect(commandEntry?.title).toBe('Add Note for Selection');
     expect(commandEntry?.category).toBe('Group Bookmarks');
+    expect(commandEntry?.icon).toBe('$(note)');
+    expect(bookmarkMenuEntry).toBeDefined();
+    expect(bookmarkMenuEntry?.when).toBe('editorTextFocus');
+    expect(bookmarkMenuEntry?.group).toBe('9_bookmarks@1');
     expect(menuEntry).toBeDefined();
     expect(menuEntry?.when).toBe('editorTextFocus && editorHasSelection');
     expect(menuEntry?.group).toBe('9_bookmarks@2');
   });
 
-  it('adds context menu entries for term-note tree items', () => {
+  it('adds inline and context menu entries for term-note tree items and groups', () => {
     const packageJsonPath = path.resolve(__dirname, '..', '..', 'package.json');
     const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
     const viewContextMenus = packageJson.contributes.menus['view/item/context'] as Array<{ command: string; when?: string; group?: string }>;
 
     const openEntry = viewContextMenus.find(item => item.command === 'groupBookmarks.openTermNote');
     const removeEntry = viewContextMenus.find(item => item.command === 'groupBookmarks.removeTermNoteFromGroup');
-    const deleteEntry = viewContextMenus.find(item => item.command === 'groupBookmarks.deleteTermNote');
+    const deleteEntries = viewContextMenus.filter(item => item.command === 'groupBookmarks.deleteTermNote');
     const addExistingEntry = viewContextMenus.find(item => item.command === 'groupBookmarks.addExistingTermNoteToGroup');
-    const setActiveEntry = viewContextMenus.find(item => item.command === 'groupBookmarks.setActiveTermNoteGroup');
+    const setActiveEntries = viewContextMenus.filter(item => item.command === 'groupBookmarks.setActiveTermNoteGroup');
+    const renameGroupEntry = viewContextMenus.find(item => item.command === 'groupBookmarks.renameTermNoteGroup');
+    const deleteGroupEntry = viewContextMenus.find(item => item.command === 'groupBookmarks.deleteTermNoteGroup');
 
     expect(openEntry).toEqual(expect.objectContaining({
       when: 'view == groupTermNotesView && viewItem == term-note',
-      group: 'inline',
+      group: 'inline@1',
     }));
-    expect(setActiveEntry).toEqual(expect.objectContaining({
+    expect(setActiveEntries).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        when: 'view == groupTermNotesView && viewItem == term-note-group',
+        group: 'inline@1',
+      }),
+      expect.objectContaining({
+        when: 'view == groupTermNotesView && viewItem == term-note-group',
+      }),
+    ]));
+    expect(renameGroupEntry).toEqual(expect.objectContaining({
+      when: 'view == groupTermNotesView && viewItem == term-note-group',
+    }));
+    expect(deleteGroupEntry).toEqual(expect.objectContaining({
       when: 'view == groupTermNotesView && viewItem == term-note-group',
     }));
     expect(removeEntry).toEqual(expect.objectContaining({
       when: 'view == groupTermNotesView && viewItem == term-note',
     }));
-    expect(deleteEntry).toEqual(expect.objectContaining({
-      when: 'view == groupTermNotesView && viewItem == term-note',
-    }));
+    expect(deleteEntries).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        when: 'view == groupTermNotesView && viewItem == term-note',
+        group: 'inline@2',
+      }),
+      expect.objectContaining({
+        when: 'view == groupTermNotesView && viewItem == term-note',
+      }),
+    ]));
     expect(addExistingEntry).toEqual(expect.objectContaining({
       when: 'view == groupTermNotesView && viewItem == term-note',
     }));

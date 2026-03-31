@@ -111,7 +111,10 @@ export class TermNoteTreeProvider implements vscode.TreeDataProvider<TermNoteTre
         );
 
         if (isActive) {
-            item.description = 'Active';
+            item.iconPath = new vscode.ThemeIcon(
+                'pinned',
+                new vscode.ThemeColor('list.highlightForeground')
+            );
         }
 
         return item;

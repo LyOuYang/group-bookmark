@@ -2,7 +2,7 @@
   "name": "group-bookmarks",
   "displayName": "Group Bookmarks",
   "description": "Source Code Bookmark Group Management | 源码书签分组管理",
-  "version": "2.0.5",
+  "version": "2.0.6",
   "publisher": "groupbookmarks",
   "repository": {
     "type": "git",
@@ -96,7 +96,9 @@
       },
       {
         "command": "groupBookmarks.addBookmarkMenu",
-        "title": "🔖 Add Group Bookmark (Ctrl+Alt+B)"
+        "title": "Add Group Bookmark",
+        "category": "Group Bookmarks",
+        "icon": "$(bookmark)"
       },
       {
         "command": "groupBookmarks.setActiveGroup",
@@ -137,7 +139,8 @@
       {
         "command": "groupBookmarks.addTermNoteFromSelection",
         "title": "Add Note for Selection",
-        "category": "Group Bookmarks"
+        "category": "Group Bookmarks",
+        "icon": "$(note)"
       },
       {
         "command": "groupBookmarks.openTermNote",
@@ -150,6 +153,18 @@
         "title": "New Term Note Group",
         "category": "Group Bookmarks",
         "icon": "$(add)"
+      },
+      {
+        "command": "groupBookmarks.renameTermNoteGroup",
+        "title": "Rename Group",
+        "category": "Group Bookmarks",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "groupBookmarks.deleteTermNoteGroup",
+        "title": "Delete Group",
+        "category": "Group Bookmarks",
+        "icon": "$(trash)"
       },
       {
         "command": "groupBookmarks.removeTermNoteFromGroup",
@@ -328,7 +343,12 @@
         {
           "command": "groupBookmarks.openTermNote",
           "when": "view == groupTermNotesView && viewItem == term-note",
-          "group": "inline"
+          "group": "inline@1"
+        },
+        {
+          "command": "groupBookmarks.deleteTermNote",
+          "when": "view == groupTermNotesView && viewItem == term-note",
+          "group": "inline@2"
         },
         {
           "command": "groupBookmarks.addExistingTermNoteToGroup",
@@ -348,7 +368,19 @@
         {
           "command": "groupBookmarks.setActiveTermNoteGroup",
           "when": "view == groupTermNotesView && viewItem == term-note-group",
-          "group": "1_manage@1"
+          "group": "inline@1"
+        },
+        {
+          "command": "groupBookmarks.renameTermNoteGroup",
+          "when": "view == groupTermNotesView && viewItem == term-note-group"
+        },
+        {
+          "command": "groupBookmarks.setActiveTermNoteGroup",
+          "when": "view == groupTermNotesView && viewItem == term-note-group"
+        },
+        {
+          "command": "groupBookmarks.deleteTermNoteGroup",
+          "when": "view == groupTermNotesView && viewItem == term-note-group"
         }
       ]
     }
