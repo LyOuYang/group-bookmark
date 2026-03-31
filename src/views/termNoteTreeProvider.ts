@@ -9,6 +9,7 @@ export class TermNoteTreeItem extends vscode.TreeItem {
     constructor(
         public readonly type: TermNoteTreeItemType,
         public readonly dataId: string,
+        public readonly groupId: string | undefined,
         label: string,
         collapsibleState: vscode.TreeItemCollapsibleState
     ) {
@@ -58,6 +59,7 @@ export class TermNoteTreeProvider implements vscode.TreeDataProvider<TermNoteTre
             const item = new TermNoteTreeItem(
                 'term-note-group',
                 group.id,
+                undefined,
                 group.displayName,
                 vscode.TreeItemCollapsibleState.Collapsed
             );
@@ -78,12 +80,15 @@ export class TermNoteTreeProvider implements vscode.TreeDataProvider<TermNoteTre
                     return null;
                 }
 
-                return new TermNoteTreeItem(
+                const item = new TermNoteTreeItem(
                     'term-note',
                     note.id,
+                    groupId,
                     note.term,
                     vscode.TreeItemCollapsibleState.None
                 );
+
+                return item;
             })
             .filter((item): item is TermNoteTreeItem => item !== null);
     }

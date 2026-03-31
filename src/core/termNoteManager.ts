@@ -53,6 +53,13 @@ export class TermNoteManager {
     }
 
     /**
+     * 按 ID 查找词条笔记
+     */
+    getById(noteId: string): TermNote | undefined {
+        return this.dataManager.getTermNote(noteId);
+    }
+
+    /**
      * 按规范化词条查找
      */
     getByNormalizedTerm(normalizedTerm: string): TermNote | undefined {

@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { DataManager } from '../data/dataManager';
 import { GroupManager } from '../core/groupManager';
 import { RelationManager } from '../core/relationManager';
+import { Bookmark, GroupColor } from '../models/types';
 import { SVGIconCache, GroupInfo } from '../services/svgIconCache';
 import { PathUtils } from '../utils/pathUtils';
 
@@ -90,7 +91,7 @@ export class DecorationManager {
 
         // 按行分组书签
         // Map<line, Bookmarks[]>
-        const bookmarksByLine = new Map<number, any[]>(); // using any to avoid type complexity locally
+        const bookmarksByLine = new Map<number, Bookmark[]>();
 
         for (const bookmark of bookmarks) {
             if (!bookmarksByLine.has(bookmark.line)) {
@@ -135,7 +136,7 @@ export class DecorationManager {
                 }
             }
 
-            if (groupInfos.length === 0) continue;
+            if (groupInfos.length === 0) {continue;}
 
             // 生成图标缓存 Key
             // Sort keys specifically to avoid duplicates like Red_1|Blue_2 vs Blue_2|Red_1?
@@ -186,7 +187,7 @@ export class DecorationManager {
         });
 
         // 清除未使用的装饰类型
-        this.decorationTypes.forEach((decorationType, key) => {
+        this.decorationTypes.forEach((decorationType) => {
             if (!usedDecorationTypes.has(decorationType)) {
                 editor.setDecorations(decorationType, []);
             }
@@ -200,7 +201,7 @@ export class DecorationManager {
         return iconKey.split('|').map(part => {
             const [color, numberStr] = part.split('_');
             return {
-                color: color as any,
+                color: color as GroupColor,
                 number: parseInt(numberStr, 10)
             };
         });
@@ -234,7 +235,7 @@ export class DecorationManager {
         const md = new vscode.MarkdownString();
         // 移除 supportHtml 和 isTrusted，改用纯 Markdown + Emoji 以保证最大兼容性
 
-        if (bookmarks.length === 0) return md;
+        if (bookmarks.length === 0) {return md;}
 
         md.appendMarkdown(`**Bookmarks (Line ${line})**\n\n`);
 
@@ -255,14 +256,16 @@ export class DecorationManager {
         return md;
     }
 
-    private getColorEmoji(color: string): string {
-        switch (color.toLowerCase()) {
-            case 'red': return '🔴';
-            case 'green': return '🟢';
-            case 'blue': return '🔵';
-            case 'yellow': return '🟡';
-            case 'purple': return '🟣';
-            case 'orange': return '🟠';
+    private getColorEmoji(color: GroupColor | string): string {
+        switch (color) {
+            case GroupColor.Red: return '🔴';
+            case GroupColor.Green: return '🟢';
+            case GroupColor.Blue: return '🔵';
+            case GroupColor.Yellow: return '🟡';
+            case GroupColor.Purple: return '🟣';
+            case GroupColor.Orange: return '🟠';
+            case GroupColor.Pink: return '🔴';
+            case GroupColor.Gray: return '⚫';
             default: return '⚪';
         }
     }

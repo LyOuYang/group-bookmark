@@ -7,6 +7,10 @@ import { BookmarkTreeProvider } from '../views/treeProvider';
 import { PathUtils } from '../utils/pathUtils';
 import { Logger } from '../utils/logger';
 
+type ViewTreeItem = {
+    dataId?: string;
+};
+
 /**
  * 命令处理器 - 处理所有用户命令
  */
@@ -48,76 +52,76 @@ export class CommandHandler {
 
         // 删除书签
         context.subscriptions.push(
-            vscode.commands.registerCommand('groupBookmarks.deleteBookmark', (item: any) =>
+            vscode.commands.registerCommand('groupBookmarks.deleteBookmark', (item: ViewTreeItem) =>
                 this.deleteBookmark(item)
             )
         );
 
         // 删除分组
         context.subscriptions.push(
-            vscode.commands.registerCommand('groupBookmarks.deleteGroup', (item: any) =>
+            vscode.commands.registerCommand('groupBookmarks.deleteGroup', (item: ViewTreeItem) =>
                 this.deleteGroup(item)
             )
         );
 
         // 重命名分组
         context.subscriptions.push(
-            vscode.commands.registerCommand('groupBookmarks.renameGroup', (item: any) =>
+            vscode.commands.registerCommand('groupBookmarks.renameGroup', (item: ViewTreeItem) =>
                 this.renameGroup(item)
             )
         );
 
         // 重命名书签
         context.subscriptions.push(
-            vscode.commands.registerCommand('groupBookmarks.renameBookmark', (item: any) =>
+            vscode.commands.registerCommand('groupBookmarks.renameBookmark', (item: ViewTreeItem) =>
                 this.renameBookmark(item)
             )
         );
 
         // 切换分组 Ghost Text 显示
         context.subscriptions.push(
-            vscode.commands.registerCommand('groupBookmarks.toggleGroupGhostText', (item: any) =>
+            vscode.commands.registerCommand('groupBookmarks.toggleGroupGhostText', (item: ViewTreeItem) =>
                 this.toggleGroupGhostText(item)
             )
         );
 
         // 设置活动分组
         context.subscriptions.push(
-            vscode.commands.registerCommand('groupBookmarks.setActiveGroup', (item: any) =>
+            vscode.commands.registerCommand('groupBookmarks.setActiveGroup', (item: ViewTreeItem) =>
                 this.setActiveGroup(item)
             )
         );
 
         // 取消活动分组
         context.subscriptions.push(
-            vscode.commands.registerCommand('groupBookmarks.unsetActiveGroup', (item: any) =>
+            vscode.commands.registerCommand('groupBookmarks.unsetActiveGroup', (item: ViewTreeItem) =>
                 this.setActiveGroup(item)
             )
         );
         // 上移书签
         context.subscriptions.push(
-            vscode.commands.registerCommand('groupBookmarks.moveUp', (item: any) =>
+            vscode.commands.registerCommand('groupBookmarks.moveUp', (item: ViewTreeItem) =>
                 this.moveBookmark(item, 'up')
             )
         );
 
         // 下移书签
         context.subscriptions.push(
-            vscode.commands.registerCommand('groupBookmarks.moveDown', (item: any) =>
+            vscode.commands.registerCommand('groupBookmarks.moveDown', (item: ViewTreeItem) =>
                 this.moveBookmark(item, 'down')
             )
         );
 
         // 移到顶部
         context.subscriptions.push(
-            vscode.commands.registerCommand('groupBookmarks.moveToTop', (item: any) =>
+            vscode.commands.registerCommand('groupBookmarks.moveToTop', (item: ViewTreeItem) =>
                 this.moveBookmark(item, 'top')
             )
         );
 
         // 移到底部
         context.subscriptions.push(
-            vscode.commands.registerCommand('groupBookmarks.moveToBottom', (item: any) =>
+            vscode.commands.registerCommand('groupBookmarks.moveToBottom', (item: ViewTreeItem) =>
                 this.moveBookmark(item, 'bottom')
             )
         );
@@ -208,23 +212,20 @@ export class CommandHandler {
     /**
      * 设置为活动分组
      */
-    private async setActiveGroup(item: any): Promise<void> {
-        if (!item?.dataId) return;
+    private async setActiveGroup(item: ViewTreeItem): Promise<void> {
+        if (!item?.dataId) {return;}
 
         const group = this.groupManager.getGroupById(item.dataId);
         if (group) {
             // 支持 Toggle 逻辑
             const currentActive = this.groupManager.getActiveGroupId();
             if (currentActive === group.id) {
-                // 原 API 可能是 setActiveGroup，尝试传 undefined 或空字符串
-                // 如果编译报错，说明 GroupManager 需要更新，但先尝试最可能的 API
-                // 假设 setActiveGroupId 存在 (因为 getActiveGroupId 存在)
-                // 且看 Step 635 引用过
-                await this.groupManager.setActiveGroup('');
+                await this.groupManager.setActiveGroup(undefined);
+                vscode.window.showInformationMessage('📌 Active group cleared');
             } else {
                 await this.groupManager.setActiveGroup(group.id);
+                vscode.window.showInformationMessage(`📌 Active group set to "${group.name}"`);
             }
-            vscode.window.showInformationMessage(`📌 Active group set to "${group.name}"`);
         }
     }
 
@@ -265,12 +266,14 @@ export class CommandHandler {
 
             // 如果没有有效的活动分组，或者用户需要切换，则显示选择器
             // 2. 交互循环
-            while (true) {
+            let shouldRestart = true;
+            while (shouldRestart) {
+                shouldRestart = false;
                 // 如果没有目标分组，进入选组环节
                 if (!targetGroup) {
-                    targetGroup = await this.pickGroup(lineText);
+                    targetGroup = await this.pickGroup();
                     // 如果选组取消，则整个流程结束
-                    if (!targetGroup) return;
+                    if (!targetGroup) {return;}
                 }
 
                 // 进入标题输入环节
@@ -285,6 +288,7 @@ export class CommandHandler {
                 // title 为 undefined 表示用户按了 Back 按钮 -> 重置分组，循环重来
                 if (title === undefined) {
                     targetGroup = undefined;
+                    shouldRestart = true;
                     continue;
                 }
 
@@ -300,7 +304,7 @@ export class CommandHandler {
     /**
      * 选择分组
      */
-    private async pickGroup(previewText: string): Promise<Group | undefined> {
+    private async pickGroup(): Promise<Group | undefined> {
         return new Promise((resolve) => {
             const groups = this.groupManager.getAllGroups();
             const activeGroupId = this.groupManager.getActiveGroupId();
@@ -417,7 +421,7 @@ export class CommandHandler {
                 resolve(value);
             });
 
-            inputBox.onDidTriggerButton((item) => {
+            inputBox.onDidTriggerButton(() => {
                 inputBox.hide();
                 resolve(undefined); // Back
             });
@@ -545,7 +549,13 @@ export class CommandHandler {
     /**
      * 删除书签
      */
-    private async deleteBookmark(item: any): Promise<void> {
+    private async deleteBookmark(item: ViewTreeItem): Promise<void> {
+        if (!item.dataId) {
+            Logger.error('Invalid bookmark item', { item });
+            vscode.window.showErrorMessage('Invalid bookmark item');
+            return;
+        }
+
         // item.dataId 是 relation.id (bookmarkId_groupId)
         const parts = item.dataId.split('_');
         if (parts.length !== 2) {
@@ -579,7 +589,7 @@ export class CommandHandler {
     /**
      * 删除分组
      */
-    private async deleteGroup(item: any): Promise<void> {
+    private async deleteGroup(item: ViewTreeItem): Promise<void> {
         if (!item.dataId) {
             Logger.error('Invalid group item', { item });
             vscode.window.showErrorMessage('Invalid group item');
@@ -617,7 +627,7 @@ export class CommandHandler {
     /**
      * 重命名分组
      */
-    private async renameGroup(item: any): Promise<void> {
+    private async renameGroup(item: ViewTreeItem): Promise<void> {
         if (!item.dataId) {
             Logger.error('Invalid group item', { item });
             vscode.window.showErrorMessage('Invalid group item');
@@ -653,8 +663,8 @@ export class CommandHandler {
     /**
      * 切换分组 Ghost Text 显示
      */
-    private async toggleGroupGhostText(item: any): Promise<void> {
-        if (!item?.dataId) return;
+    private async toggleGroupGhostText(item: ViewTreeItem): Promise<void> {
+        if (!item?.dataId) {return;}
         const groupId = item.dataId;
 
         try {
@@ -668,7 +678,7 @@ export class CommandHandler {
     /**
      * 重命名书签
      */
-    private async renameBookmark(item: any): Promise<void> {
+    private async renameBookmark(item: ViewTreeItem): Promise<void> {
         if (!item?.dataId) {
             Logger.error('Invalid bookmark item', { item });
             vscode.window.showErrorMessage('Invalid bookmark item');
@@ -724,20 +734,20 @@ export class CommandHandler {
     /**
      * 移动书签（上移/下移/移到顶部/移到底部）
      */
-    private async moveBookmark(item: any, direction: 'up' | 'down' | 'top' | 'bottom'): Promise<void> {
-        if (!item?.dataId) return;
+    private async moveBookmark(item: ViewTreeItem, direction: 'up' | 'down' | 'top' | 'bottom'): Promise<void> {
+        if (!item?.dataId) {return;}
 
         // 解析 ID: bookmarkId_groupId
         const parts = item.dataId.split('_');
         const groupId = parts[1];
 
-        if (!groupId) return;
+        if (!groupId) {return;}
 
         try {
             const relations = this.relationManager.getRelationsInGroup(groupId);
             const index = relations.findIndex(r => r.id === item.dataId);
 
-            if (index === -1) return;
+            if (index === -1) {return;}
 
             const newRelations = [...relations];
 

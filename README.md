@@ -27,7 +27,13 @@ When reading massive source code, logic often scatters across dozens of files. "
 *   **Drag & Drop**: Drag bookmarks to move them between groups, or drag groups to reorder them.
 *   **Inline Actions**: Rename, delete, or toggle visibility directly from the group header.
 
-### 4. 🔄 Import/Export
+### 4. 📝 Term Notes
+*   **Active Group Flow**: Right-click a term-note group in the Term Notes view and set it as active. `Add Note for Selection` uses the active term-note group automatically, and if none is active it will prompt you to select or create one.
+*   **Add Note**: Select text in the editor and run `Add Note for Selection` to create or open a term note.
+*   **Manage Membership**: In the Term Notes view, right-click a note to set a group active, remove it from the current group, add it to another group, or delete it everywhere.
+*   **Selection Preview**: Selecting a matching term shows the note preview and related groups inline without changing the current selection workflow.
+
+### 5. 🔄 Import/Export
 *   Export all groups and bookmarks to a JSON file for sharing with colleagues or syncing between devices.
 
 ---
@@ -90,7 +96,12 @@ When reading massive source code, logic often scatters across dozens of files. "
 *   **Drag & Drop**: 支持拖拽书签在分组间移动，或拖拽改变分组排序。
 *   **Inline Actions**: 在分组标题栏即可快速完成重命名、删除、切换可见性等操作。
 
-### 4. 🔄 导入/导出
+### 4. 📝 术语笔记
+*   **添加笔记**：在编辑器中选中一段文本后运行 `Add Note for Selection`，即可在当前术语分组中创建或打开对应笔记。
+*   **管理归属**：在 Term Notes 视图中，右键笔记即可将其从当前分组移除、加入其他分组，或直接删除全部关联。
+*   **选区预览**：当选中的术语与已有笔记匹配时，编辑器会直接显示笔记预览和关联分组，不影响当前选区操作流程。
+
+### 5. 🔄 导入/导出
 *   支持将所有分组和书签导出为 JSON 文件，便于分享给同事或在不同设备间同步上下文。
 
 ---

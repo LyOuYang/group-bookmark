@@ -1,14 +1,45 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import type * as vscode from 'vscode';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GroupColor, type TermNote, type TermNoteGroup, type TermNoteGroupRelation } from '../../src/models/types';
+import { registerTermNotePreviewSelectionListener } from '../../src/extension';
+import { DataManager } from '../../src/data/dataManager';
+import { TermNoteManager } from '../../src/core/termNoteManager';
+import { TermNoteGroupManager } from '../../src/core/termNoteGroupManager';
+import { TermNoteRelationManager } from '../../src/core/termNoteRelationManager';
 import { TermNoteDocumentService } from '../../src/services/termNoteDocumentService';
+import { TermNotePreviewService } from '../../src/services/termNotePreviewService';
 import { TermNoteCommandHandler } from '../../src/views/termNoteCommandHandler';
-import { TermNoteTreeProvider } from '../../src/views/termNoteTreeProvider';
+import { TermNoteTreeItem, TermNoteTreeProvider } from '../../src/views/termNoteTreeProvider';
+import { TermNoteSidebarPreviewProvider } from '../../src/views/termNoteSidebarPreviewProvider';
+import { registerTermNoteTreePreviewSelectionListener } from '../../src/extension';
+
+type CommandHandler = (...args: unknown[]) => unknown;
+type RegisteredCommand = {
+  dispose: () => void;
+  handler: CommandHandler;
+};
+type TestExtensionContext = {
+  subscriptions: Array<{ dispose: () => void }>;
+};
+type TextEditorSelectionMock = {
+  isEmpty: boolean;
+  start?: { line: number; character: number };
+  end?: { line: number; character: number };
+};
+type TextEditorMock = {
+  document: {
+    getText: (selection?: unknown) => string;
+  };
+  selection: TextEditorSelectionMock;
+};
 
 const mockState = vi.hoisted(() => ({
   window: {
-    activeTextEditor: undefined as any,
+    activeTextEditor: undefined as TextEditorMock | undefined,
+    createTextEditorDecorationType: vi.fn().mockReturnValue({ dispose: vi.fn() }),
+    onDidChangeTextEditorSelection: vi.fn(),
     showQuickPick: vi.fn().mockResolvedValue(undefined),
     showInputBox: vi.fn().mockResolvedValue(undefined),
     showWarningMessage: vi.fn().mockResolvedValue(undefined),
@@ -16,16 +47,20 @@ const mockState = vi.hoisted(() => ({
     showTextDocument: vi.fn().mockResolvedValue(undefined),
   },
   commands: {
-    registerCommand: vi.fn((_command: string, handler: (...args: any[]) => any) => ({
-      dispose: vi.fn(),
-      handler,
-    })),
+    registerCommand: vi.fn((command: string, handler: CommandHandler): RegisteredCommand => {
+      void command;
+      return {
+        dispose: vi.fn(),
+        handler,
+      };
+    }),
+    executeCommand: vi.fn().mockResolvedValue(undefined),
   },
   workspace: {
     fs: {
       isWritableFileSystem: vi.fn().mockReturnValue(true),
     },
-    openTextDocument: vi.fn().mockImplementation(async (uri: any) => ({
+    openTextDocument: vi.fn().mockImplementation(async (uri: vscode.Uri) => ({
       uri,
       getText: vi.fn().mockReturnValue(''),
     })),
@@ -33,8 +68,21 @@ const mockState = vi.hoisted(() => ({
   },
 }));
 
+const defaultRegisterCommand = (command: string, handler: CommandHandler): RegisteredCommand => {
+  void command;
+  return {
+    dispose: vi.fn(),
+    handler,
+  };
+};
+
+const defaultOpenTextDocument = async (uri: vscode.Uri) => ({
+  uri,
+  getText: vi.fn().mockReturnValue(''),
+});
+
 vi.mock('vscode', () => {
-  class MockEventEmitter<T = void> {
+  class MockEventEmitter {
     event = vi.fn();
     fire = vi.fn();
     dispose = vi.fn();
@@ -57,6 +105,20 @@ vi.mock('vscode', () => {
     constructor(private readonly fn: () => void = () => {}) {}
     dispose() {
       this.fn();
+    }
+  }
+
+  class MockMarkdownString {
+    value = '';
+
+    appendMarkdown(text: string) {
+      this.value += text;
+      return this;
+    }
+
+    appendText(text: string) {
+      this.value += text.replace(/[&<>]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[ch] ?? ch));
+      return this;
     }
   }
 
@@ -87,6 +149,7 @@ vi.mock('vscode', () => {
     EventEmitter: MockEventEmitter,
     TreeItem: MockTreeItem,
     Disposable: MockDisposable,
+    MarkdownString: MockMarkdownString,
     Uri: MockUri,
     FileType: {
       File: 1,
@@ -158,10 +221,141 @@ function createEventHook() {
 afterEach(() => {
   mockState.window.activeTextEditor = undefined;
   vi.clearAllMocks();
+  mockState.window.showQuickPick.mockReset().mockResolvedValue(undefined);
+  mockState.window.showInputBox.mockReset().mockResolvedValue(undefined);
+  mockState.window.showWarningMessage.mockReset().mockResolvedValue(undefined);
+  mockState.window.showErrorMessage.mockReset().mockResolvedValue(undefined);
+  mockState.window.showTextDocument.mockReset().mockResolvedValue(undefined);
+  mockState.window.createTextEditorDecorationType.mockReset().mockReturnValue({ dispose: vi.fn() });
+  mockState.window.onDidChangeTextEditorSelection.mockReset();
+  mockState.commands.registerCommand.mockReset().mockImplementation(defaultRegisterCommand);
+  mockState.commands.executeCommand.mockReset().mockResolvedValue(undefined);
+  mockState.workspace.openTextDocument.mockReset().mockImplementation(defaultOpenTextDocument);
+  mockState.workspace.registerFileSystemProvider.mockReset().mockReturnValue({ dispose: vi.fn() });
   mockState.workspace.fs.isWritableFileSystem.mockReturnValue(true);
 });
 
+function createPreviewEditor(selectedText: string) {
+  const selection: TextEditorSelectionMock = {
+    isEmpty: selectedText.length === 0,
+    start: { line: 1, character: 0 },
+    end: { line: 1, character: selectedText.length },
+  };
+
+  return {
+    document: {
+      getText: vi.fn().mockReturnValue(selectedText),
+    },
+    selection,
+    setDecorations: vi.fn(),
+  };
+}
+
+function createExtensionContext() {
+  return {
+    subscriptions: [] as Array<{ dispose: () => void }>,
+  };
+}
+
+type TermNoteTreeItemLike = {
+  dataId?: string;
+  groupId?: string;
+  label?: string | { label: string };
+};
+
+function asExtensionContext(context: TestExtensionContext): vscode.ExtensionContext {
+  return context as unknown as vscode.ExtensionContext;
+}
+
+function asTextEditor(editor: ReturnType<typeof createPreviewEditor>): vscode.TextEditor {
+  return editor as unknown as vscode.TextEditor;
+}
+
+function asTermNoteManager(mock: unknown): TermNoteManager {
+  return mock as unknown as TermNoteManager;
+}
+
+function asTermNoteGroupManager(mock: unknown): TermNoteGroupManager {
+  return mock as unknown as TermNoteGroupManager;
+}
+
+function asTermNoteRelationManager(mock: unknown): TermNoteRelationManager {
+  return mock as unknown as TermNoteRelationManager;
+}
+
+function asTermNoteDocumentService(mock: unknown): TermNoteDocumentService {
+  return mock as unknown as TermNoteDocumentService;
+}
+
+function asDataManager(mock: unknown): DataManager {
+  return mock as unknown as DataManager;
+}
+
+function asPreviewService(mock: unknown): TermNotePreviewService {
+  return mock as unknown as TermNotePreviewService;
+}
+
+function asSidebarPreviewProvider(mock: unknown): TermNoteSidebarPreviewProvider {
+  return mock as unknown as TermNoteSidebarPreviewProvider;
+}
+
+function createWebviewView() {
+  return {
+    webview: {
+      html: '',
+      options: {},
+    },
+  };
+}
+
 describe('TermNoteCommandHandler', () => {
+  it('registers term-note management commands', () => {
+    const handler = new TermNoteCommandHandler(
+      asTermNoteManager({ createOrGetTermNote: vi.fn() }),
+      asTermNoteGroupManager({ getActiveTermNoteGroupId: vi.fn(), getGroupById: vi.fn(), getAllGroups: vi.fn() }),
+      asTermNoteRelationManager({
+        addTermNoteToGroup: vi.fn(),
+        removeTermNoteFromGroup: vi.fn(),
+        deleteTermNoteEverywhere: vi.fn(),
+        getGroupsForTermNote: vi.fn(),
+      }),
+      asTermNoteDocumentService({ openNoteDocument: vi.fn() })
+    );
+    const context = createExtensionContext();
+
+    handler.registerCommands(asExtensionContext(context));
+
+    expect(mockState.commands.registerCommand).toHaveBeenCalledWith(
+      'groupBookmarks.addTermNoteFromSelection',
+      expect.any(Function)
+    );
+    expect(mockState.commands.registerCommand).toHaveBeenCalledWith(
+      'groupBookmarks.openTermNote',
+      expect.any(Function)
+    );
+    expect(mockState.commands.registerCommand).toHaveBeenCalledWith(
+      'groupBookmarks.createTermNoteGroup',
+      expect.any(Function)
+    );
+    expect(mockState.commands.registerCommand).toHaveBeenCalledWith(
+      'groupBookmarks.removeTermNoteFromGroup',
+      expect.any(Function)
+    );
+    expect(mockState.commands.registerCommand).toHaveBeenCalledWith(
+      'groupBookmarks.deleteTermNote',
+      expect.any(Function)
+    );
+    expect(mockState.commands.registerCommand).toHaveBeenCalledWith(
+      'groupBookmarks.addExistingTermNoteToGroup',
+      expect.any(Function)
+    );
+    expect(mockState.commands.registerCommand).toHaveBeenCalledWith(
+      'groupBookmarks.setActiveTermNoteGroup',
+      expect.any(Function)
+    );
+    expect(context.subscriptions).toHaveLength(7);
+  });
+
   it('opens the custom term-note document after creating or finding the note', async () => {
     const termNoteManager = {
       createOrGetTermNote: vi.fn().mockResolvedValue({ id: 'note-1' }),
@@ -187,15 +381,41 @@ describe('TermNoteCommandHandler', () => {
     };
 
     const handler = new TermNoteCommandHandler(
-      termNoteManager as any,
-      termNoteGroupManager as any,
-      relationManager as any,
-      documentService as any
+      asTermNoteManager(termNoteManager),
+      asTermNoteGroupManager(termNoteGroupManager),
+      asTermNoteRelationManager(relationManager),
+      asTermNoteDocumentService(documentService)
     );
 
     await handler.addTermNoteFromSelection();
 
     expect(documentService.openNoteDocument).toHaveBeenCalledWith('note-1');
+  });
+
+  it('opens an existing term note from the tree item command', async () => {
+    const documentService = {
+      openNoteDocument: vi.fn().mockResolvedValue(undefined),
+    };
+    const handler = new TermNoteCommandHandler(
+      asTermNoteManager({ createOrGetTermNote: vi.fn() }),
+      asTermNoteGroupManager({ getActiveTermNoteGroupId: vi.fn(), getGroupById: vi.fn(), getAllGroups: vi.fn() }),
+      asTermNoteRelationManager({
+        addTermNoteToGroup: vi.fn(),
+        removeTermNoteFromGroup: vi.fn(),
+        deleteTermNoteEverywhere: vi.fn(),
+        getGroupsForTermNote: vi.fn(),
+      }),
+      asTermNoteDocumentService(documentService)
+    );
+
+    await handler.openTermNote({
+      dataId: 'note-1',
+      groupId: 'group-1',
+      label: 'User Table',
+    } as TermNoteTreeItemLike);
+
+    expect(documentService.openNoteDocument).toHaveBeenCalledWith('note-1');
+    expect(mockState.window.showErrorMessage).not.toHaveBeenCalled();
   });
 
   it('creates a new note from selection using the original selected text and assigns it to the active group', async () => {
@@ -220,10 +440,10 @@ describe('TermNoteCommandHandler', () => {
     };
 
     const handler = new TermNoteCommandHandler(
-      termNoteManager as any,
-      termNoteGroupManager as any,
-      relationManager as any,
-      { openNoteDocument: vi.fn().mockResolvedValue(undefined) } as any
+      asTermNoteManager(termNoteManager),
+      asTermNoteGroupManager(termNoteGroupManager),
+      asTermNoteRelationManager(relationManager),
+      asTermNoteDocumentService({ openNoteDocument: vi.fn().mockResolvedValue(undefined) })
     );
 
     await handler.addTermNoteFromSelection();
@@ -263,15 +483,16 @@ describe('TermNoteCommandHandler', () => {
     });
 
     const handler = new TermNoteCommandHandler(
-      termNoteManager as any,
-      termNoteGroupManager as any,
-      relationManager as any,
-      { openNoteDocument: vi.fn().mockResolvedValue(undefined) } as any
+      asTermNoteManager(termNoteManager),
+      asTermNoteGroupManager(termNoteGroupManager),
+      asTermNoteRelationManager(relationManager),
+      asTermNoteDocumentService({ openNoteDocument: vi.fn().mockResolvedValue(undefined) })
     );
 
     await handler.addTermNoteFromSelection();
 
     expect(termNoteGroupManager.setActiveTermNoteGroupId).toHaveBeenNthCalledWith(1, undefined);
+    expect(termNoteGroupManager.setActiveTermNoteGroupId).toHaveBeenNthCalledWith(2, 'group-2');
     expect(mockState.window.showQuickPick).toHaveBeenCalledTimes(1);
     expect(termNoteManager.createOrGetTermNote).toHaveBeenCalledTimes(1);
     expect(termNoteManager.createOrGetTermNote).toHaveBeenCalledWith('HTTP Client');
@@ -308,10 +529,10 @@ describe('TermNoteCommandHandler', () => {
     });
 
     const handler = new TermNoteCommandHandler(
-      termNoteManager as any,
-      termNoteGroupManager as any,
-      relationManager as any,
-      { openNoteDocument: vi.fn().mockResolvedValue(undefined) } as any
+      asTermNoteManager(termNoteManager),
+      asTermNoteGroupManager(termNoteGroupManager),
+      asTermNoteRelationManager(relationManager),
+      asTermNoteDocumentService({ openNoteDocument: vi.fn().mockResolvedValue(undefined) })
     );
 
     await handler.addTermNoteFromSelection();
@@ -353,10 +574,10 @@ describe('TermNoteCommandHandler', () => {
     mockState.window.showInputBox.mockResolvedValue('Fresh Notes');
 
     const handler = new TermNoteCommandHandler(
-      termNoteManager as any,
-      termNoteGroupManager as any,
-      relationManager as any,
-      { openNoteDocument: vi.fn().mockResolvedValue(undefined) } as any
+      asTermNoteManager(termNoteManager),
+      asTermNoteGroupManager(termNoteGroupManager),
+      asTermNoteRelationManager(relationManager),
+      asTermNoteDocumentService({ openNoteDocument: vi.fn().mockResolvedValue(undefined) })
     );
 
     await handler.addTermNoteFromSelection();
@@ -366,6 +587,48 @@ describe('TermNoteCommandHandler', () => {
     expect(termNoteGroupManager.createGroup).toHaveBeenCalledWith('Fresh Notes');
     expect(termNoteGroupManager.setActiveTermNoteGroupId).toHaveBeenCalledWith('group-new');
     expect(termNoteManager.createOrGetTermNote).toHaveBeenCalledWith('HTTP Client');
+    expect(relationManager.addTermNoteToGroup).toHaveBeenCalledWith('note-1', 'group-new');
+  });
+
+  it('creates a group when quick pick returns the create label without the custom action field', async () => {
+    const termNoteManager = {
+      createOrGetTermNote: vi.fn().mockResolvedValue({ id: 'note-1' }),
+    };
+    const termNoteGroupManager = {
+      getActiveTermNoteGroupId: vi.fn().mockReturnValue(undefined),
+      getGroupById: vi.fn(),
+      getAllGroups: vi.fn().mockReturnValue([]),
+      createGroup: vi.fn().mockResolvedValue(makeGroup('group-new', { displayName: '1. Fresh Notes', name: 'Fresh Notes' })),
+      setActiveTermNoteGroupId: vi.fn().mockResolvedValue(undefined),
+    };
+    const relationManager = {
+      addTermNoteToGroup: vi.fn().mockResolvedValue(undefined),
+    };
+
+    mockState.window.activeTextEditor = {
+      document: {
+        getText: vi.fn().mockReturnValue('HTTP Client'),
+      },
+      selection: {
+        isEmpty: false,
+      },
+    };
+    mockState.window.showQuickPick.mockResolvedValue({
+      label: 'Create New Group...',
+    });
+    mockState.window.showInputBox.mockResolvedValue('Fresh Notes');
+
+    const handler = new TermNoteCommandHandler(
+      asTermNoteManager(termNoteManager),
+      asTermNoteGroupManager(termNoteGroupManager),
+      asTermNoteRelationManager(relationManager),
+      asTermNoteDocumentService({ openNoteDocument: vi.fn().mockResolvedValue(undefined) })
+    );
+
+    await handler.addTermNoteFromSelection();
+
+    expect(mockState.window.showInputBox).toHaveBeenCalledTimes(1);
+    expect(termNoteGroupManager.createGroup).toHaveBeenCalledWith('Fresh Notes');
     expect(relationManager.addTermNoteToGroup).toHaveBeenCalledWith('note-1', 'group-new');
   });
 
@@ -399,10 +662,10 @@ describe('TermNoteCommandHandler', () => {
     mockState.window.showInputBox.mockResolvedValue('Fresh Notes');
 
     const handler = new TermNoteCommandHandler(
-      termNoteManager as any,
-      termNoteGroupManager as any,
-      relationManager as any,
-      { openNoteDocument: vi.fn().mockResolvedValue(undefined) } as any
+      asTermNoteManager(termNoteManager),
+      asTermNoteGroupManager(termNoteGroupManager),
+      asTermNoteRelationManager(relationManager),
+      asTermNoteDocumentService({ openNoteDocument: vi.fn().mockResolvedValue(undefined) })
     );
 
     await expect(handler.addTermNoteFromSelection()).resolves.toBeUndefined();
@@ -410,6 +673,358 @@ describe('TermNoteCommandHandler', () => {
     expect(mockState.window.showErrorMessage).toHaveBeenCalledWith('Failed to add term note: create failed');
     expect(termNoteManager.createOrGetTermNote).not.toHaveBeenCalled();
     expect(relationManager.addTermNoteToGroup).not.toHaveBeenCalled();
+  });
+
+  it('removes only the current group relation from a term-note tree item', async () => {
+    const termNoteManager = {
+      createOrGetTermNote: vi.fn(),
+      deleteTermNote: vi.fn(),
+    };
+    const termNoteGroupManager = {
+      getActiveTermNoteGroupId: vi.fn(),
+      getGroupById: vi.fn(),
+      getAllGroups: vi.fn().mockReturnValue([]),
+    };
+    const relationManager = {
+      addTermNoteToGroup: vi.fn(),
+      removeTermNoteFromGroup: vi.fn().mockResolvedValue(undefined),
+      deleteTermNoteEverywhere: vi.fn(),
+      getGroupsForTermNote: vi.fn().mockReturnValue([]),
+    };
+    const handler = new TermNoteCommandHandler(
+      asTermNoteManager(termNoteManager),
+      asTermNoteGroupManager(termNoteGroupManager),
+      asTermNoteRelationManager(relationManager),
+      asTermNoteDocumentService({ openNoteDocument: vi.fn() })
+    );
+
+    await handler.removeTermNoteFromGroup({
+      dataId: 'note-1',
+      groupId: 'group-1',
+      label: 'User Table',
+    } as TermNoteTreeItemLike);
+
+    expect(relationManager.removeTermNoteFromGroup).toHaveBeenCalledWith('note-1', 'group-1');
+    expect(relationManager.deleteTermNoteEverywhere).not.toHaveBeenCalled();
+    expect(termNoteManager.deleteTermNote).not.toHaveBeenCalled();
+  });
+
+  it('deletes the note body and all relations after confirmation', async () => {
+    const termNoteManager = {
+      createOrGetTermNote: vi.fn(),
+      deleteTermNote: vi.fn().mockResolvedValue(undefined),
+    };
+    const termNoteGroupManager = {
+      getActiveTermNoteGroupId: vi.fn(),
+      getGroupById: vi.fn(),
+      getAllGroups: vi.fn().mockReturnValue([]),
+    };
+    const relationManager = {
+      addTermNoteToGroup: vi.fn(),
+      removeTermNoteFromGroup: vi.fn(),
+      deleteTermNoteEverywhere: vi.fn(),
+      getGroupsForTermNote: vi.fn().mockReturnValue([]),
+    };
+    mockState.window.showWarningMessage.mockResolvedValue('Delete');
+
+    const handler = new TermNoteCommandHandler(
+      asTermNoteManager(termNoteManager),
+      asTermNoteGroupManager(termNoteGroupManager),
+      asTermNoteRelationManager(relationManager),
+      asTermNoteDocumentService({ openNoteDocument: vi.fn() })
+    );
+
+    await handler.deleteTermNote({
+      dataId: 'note-1',
+      groupId: 'group-1',
+      label: 'User Table',
+    } as TermNoteTreeItemLike);
+
+    expect(mockState.window.showWarningMessage).toHaveBeenCalledWith(
+      'Delete term note "User Table" everywhere?',
+      'Delete',
+      'Cancel'
+    );
+    expect(relationManager.deleteTermNoteEverywhere).toHaveBeenCalledWith('note-1');
+    expect(relationManager.removeTermNoteFromGroup).not.toHaveBeenCalled();
+    expect(termNoteManager.deleteTermNote).not.toHaveBeenCalled();
+  });
+
+  it('adds an existing term note to another group and excludes existing memberships', async () => {
+    const userNotes = makeGroup('group-1', { displayName: '1. User Notes', name: 'User Notes' });
+    const apiNotes = makeGroup('group-2', { displayName: '2. API Notes', name: 'API Notes' });
+    const opsNotes = makeGroup('group-3', { displayName: '3. Ops Notes', name: 'Ops Notes' });
+    const termNoteManager = {
+      createOrGetTermNote: vi.fn(),
+      deleteTermNote: vi.fn(),
+    };
+    const termNoteGroupManager = {
+      getActiveTermNoteGroupId: vi.fn(),
+      getGroupById: vi.fn(),
+      getAllGroups: vi.fn().mockReturnValue([userNotes, apiNotes, opsNotes]),
+    };
+    const relationManager = {
+      addTermNoteToGroup: vi.fn().mockResolvedValue(undefined),
+      removeTermNoteFromGroup: vi.fn(),
+      deleteTermNoteEverywhere: vi.fn(),
+      getGroupsForTermNote: vi.fn().mockReturnValue([userNotes, apiNotes]),
+    };
+    mockState.window.showQuickPick.mockResolvedValue({
+      label: '3. Ops Notes',
+      groupId: 'group-3',
+    });
+
+    const handler = new TermNoteCommandHandler(
+      asTermNoteManager(termNoteManager),
+      asTermNoteGroupManager(termNoteGroupManager),
+      asTermNoteRelationManager(relationManager),
+      asTermNoteDocumentService({ openNoteDocument: vi.fn() })
+    );
+
+    await handler.addExistingTermNoteToGroup({
+      dataId: 'note-1',
+      groupId: 'group-1',
+      label: 'User Table',
+    } as TermNoteTreeItemLike);
+
+    expect(mockState.window.showQuickPick).toHaveBeenCalledTimes(1);
+    expect(mockState.window.showQuickPick.mock.calls[0][0]).toEqual([
+      expect.objectContaining({ groupId: 'group-3' }),
+    ]);
+    expect(relationManager.addTermNoteToGroup).toHaveBeenCalledWith('note-1', 'group-3');
+  });
+
+  it('sets the selected term-note group as active', async () => {
+    const termNoteManager = {
+      createOrGetTermNote: vi.fn(),
+      deleteTermNote: vi.fn(),
+    };
+    const termNoteGroupManager = {
+      getActiveTermNoteGroupId: vi.fn(),
+      getGroupById: vi.fn(),
+      getAllGroups: vi.fn().mockReturnValue([]),
+      setActiveTermNoteGroupId: vi.fn().mockResolvedValue(undefined),
+    };
+    const relationManager = {
+      addTermNoteToGroup: vi.fn(),
+      removeTermNoteFromGroup: vi.fn(),
+      deleteTermNoteEverywhere: vi.fn(),
+      getGroupsForTermNote: vi.fn().mockReturnValue([]),
+    };
+    const handler = new TermNoteCommandHandler(
+      asTermNoteManager(termNoteManager),
+      asTermNoteGroupManager(termNoteGroupManager),
+      asTermNoteRelationManager(relationManager),
+      asTermNoteDocumentService({ openNoteDocument: vi.fn() })
+    );
+
+    await handler.setActiveTermNoteGroup({
+      dataId: 'group-2',
+      label: '2. API Notes',
+    } as TermNoteTreeItemLike);
+
+    expect(termNoteGroupManager.setActiveTermNoteGroupId).toHaveBeenCalledWith('group-2');
+    expect(mockState.window.showErrorMessage).not.toHaveBeenCalled();
+  });
+
+  it('creates a term-note group from the dedicated command and sets it active', async () => {
+    const createdGroup = makeGroup('group-new', { displayName: '1. Fresh Notes', name: 'Fresh Notes' });
+    const termNoteManager = {
+      createOrGetTermNote: vi.fn(),
+      deleteTermNote: vi.fn(),
+    };
+    const termNoteGroupManager = {
+      getActiveTermNoteGroupId: vi.fn(),
+      getGroupById: vi.fn(),
+      getAllGroups: vi.fn().mockReturnValue([]),
+      createGroup: vi.fn().mockResolvedValue(createdGroup),
+      setActiveTermNoteGroupId: vi.fn().mockResolvedValue(undefined),
+    };
+    const relationManager = {
+      addTermNoteToGroup: vi.fn(),
+      removeTermNoteFromGroup: vi.fn(),
+      deleteTermNoteEverywhere: vi.fn(),
+      getGroupsForTermNote: vi.fn().mockReturnValue([]),
+    };
+    mockState.window.showInputBox.mockResolvedValue('Fresh Notes');
+
+    const handler = new TermNoteCommandHandler(
+      asTermNoteManager(termNoteManager),
+      asTermNoteGroupManager(termNoteGroupManager),
+      asTermNoteRelationManager(relationManager),
+      asTermNoteDocumentService({ openNoteDocument: vi.fn() })
+    );
+
+    await handler.createTermNoteGroup();
+
+    expect(mockState.window.showInputBox).toHaveBeenCalledWith({
+      prompt: 'Enter term-note group name',
+      placeHolder: 'Group name',
+    });
+    expect(termNoteGroupManager.createGroup).toHaveBeenCalledWith('Fresh Notes');
+    expect(termNoteGroupManager.setActiveTermNoteGroupId).toHaveBeenCalledWith(createdGroup.id);
+  });
+});
+
+describe('TermNotePreviewService', () => {
+  it('shows a hover preview for a normalized matching term selection', async () => {
+    const note = makeNote('note-1', {
+      term: 'User Table',
+      normalizedTerm: 'user_table',
+      contentMarkdown: '- indexed\n\n**stable**',
+    });
+    const groups = [
+      makeGroup('group-1', { displayName: '1. User Notes', name: 'User Notes' }),
+      makeGroup('group-2', { displayName: '2. API Notes', name: 'API Notes' }),
+    ];
+    const termNoteManager = {
+      getByNormalizedTerm: vi.fn().mockReturnValue(note),
+    };
+    const termNoteRelationManager = {
+      getGroupsForTermNote: vi.fn().mockReturnValue(groups),
+    };
+    const service = new TermNotePreviewService(
+      termNoteManager as Pick<TermNoteManager, 'getByNormalizedTerm'>,
+      termNoteRelationManager as Pick<TermNoteRelationManager, 'getGroupsForTermNote'>
+    );
+    const editor = createPreviewEditor('  User_Table  ');
+
+    await service.previewSelection(asTextEditor(editor));
+
+    expect(termNoteManager.getByNormalizedTerm).toHaveBeenCalledWith('user_table');
+    expect(termNoteRelationManager.getGroupsForTermNote).toHaveBeenCalledWith('note-1');
+    expect(editor.setDecorations).toHaveBeenCalledTimes(1);
+    expect(editor.setDecorations).toHaveBeenCalledWith(
+      expect.anything(),
+      [
+        expect.objectContaining({
+          range: editor.selection,
+          hoverMessage: expect.objectContaining({
+            value: [
+              '### User Table',
+              '',
+              '**Related groups**',
+              '- `1. User Notes`',
+              '- `2. API Notes`',
+              '',
+              '- indexed',
+              '',
+              '**stable**',
+            ].join('\n'),
+          }),
+        }),
+      ]
+    );
+    expect(mockState.commands.executeCommand).toHaveBeenCalledWith('editor.action.showHover');
+  });
+
+  it('shows a placeholder when a matching note has no markdown body', async () => {
+    const note = makeNote('note-1', {
+      term: 'HTTP Client',
+      normalizedTerm: 'http_client',
+      contentMarkdown: '',
+    });
+    const groups = [makeGroup('group-1', { displayName: '1. API Notes', name: 'API Notes' })];
+    const termNoteManager = {
+      getByNormalizedTerm: vi.fn().mockReturnValue(note),
+    };
+    const termNoteRelationManager = {
+      getGroupsForTermNote: vi.fn().mockReturnValue(groups),
+    };
+    const service = new TermNotePreviewService(
+      termNoteManager as Pick<TermNoteManager, 'getByNormalizedTerm'>,
+      termNoteRelationManager as Pick<TermNoteRelationManager, 'getGroupsForTermNote'>
+    );
+    const editor = createPreviewEditor('HTTP Client');
+
+    await service.previewSelection(asTextEditor(editor));
+
+    const hoverMessage = editor.setDecorations.mock.calls[0][1][0].hoverMessage;
+    expect(hoverMessage.value).toBe([
+      '### HTTP Client',
+      '',
+      '**Related groups**',
+      '- `1. API Notes`',
+      '',
+      '_No note body yet_',
+    ].join('\n'));
+  });
+
+  it('ignores empty, multiline, and overlong selections without showing hover', async () => {
+    const termNoteManager = {
+      getByNormalizedTerm: vi.fn(),
+    };
+    const termNoteRelationManager = {
+      getGroupsForTermNote: vi.fn(),
+    };
+    const service = new TermNotePreviewService(
+      termNoteManager as Pick<TermNoteManager, 'getByNormalizedTerm'>,
+      termNoteRelationManager as Pick<TermNoteRelationManager, 'getGroupsForTermNote'>
+    );
+
+    for (const selectedText of ['', '   ', 'User\nTable', 'A'.repeat(121)]) {
+      const editor = createPreviewEditor(selectedText);
+      await service.previewSelection(asTextEditor(editor));
+
+      expect(termNoteManager.getByNormalizedTerm).not.toHaveBeenCalled();
+      expect(termNoteRelationManager.getGroupsForTermNote).not.toHaveBeenCalled();
+      expect(mockState.commands.executeCommand).not.toHaveBeenCalled();
+      expect(editor.setDecorations).toHaveBeenCalledWith(expect.anything(), []);
+      vi.clearAllMocks();
+      mockState.commands.executeCommand.mockReset().mockResolvedValue(undefined);
+    }
+  });
+});
+
+describe('TermNoteRelationManager', () => {
+  it('returns note groups ordered by group order with a deterministic tie-breaker', () => {
+    const alpha = makeGroup('group-a', { displayName: '1. Alpha', order: 1 });
+    const beta = makeGroup('group-b', { displayName: '1. Beta', order: 1 });
+    const gamma = makeGroup('group-c', { displayName: '2. Gamma', order: 2 });
+    const relationManager = new TermNoteRelationManager({
+      getAllTermNoteRelations: vi.fn().mockReturnValue([
+        makeRelation('relation-c', 'note-1', gamma.id, { order: 99 }),
+        makeRelation('relation-b', 'note-1', beta.id, { order: 3 }),
+        makeRelation('relation-a', 'note-1', alpha.id, { order: 1 }),
+      ]),
+      getTermNoteGroup: vi.fn((id: string) => ({
+        [alpha.id]: alpha,
+        [beta.id]: beta,
+        [gamma.id]: gamma,
+      }[id]),
+      ),
+    } as unknown as DataManager);
+
+    expect(relationManager.getGroupsForTermNote('note-1').map(group => group.id)).toEqual([
+      alpha.id,
+      beta.id,
+      gamma.id,
+    ]);
+  });
+});
+
+describe('extension term-note preview wiring', () => {
+  it('registers a selection listener that forwards the active editor to the preview service', () => {
+    const previewSelection = vi.fn();
+    let selectionListener: ((event: { textEditor: unknown }) => void) | undefined;
+    mockState.window.onDidChangeTextEditorSelection.mockImplementation((listener: (event: { textEditor: unknown }) => void) => {
+      selectionListener = listener;
+      return { dispose: vi.fn() };
+    });
+
+    const context = createExtensionContext();
+    registerTermNotePreviewSelectionListener(
+      asExtensionContext(context),
+      asPreviewService({ previewSelection })
+    );
+
+    expect(mockState.window.onDidChangeTextEditorSelection).toHaveBeenCalledTimes(1);
+    expect(context.subscriptions).toHaveLength(1);
+
+    const textEditor = { id: 'editor-1' };
+    selectionListener?.({ textEditor });
+
+    expect(previewSelection).toHaveBeenCalledWith(textEditor);
   });
 });
 
@@ -432,17 +1047,20 @@ describe('TermNoteTreeProvider', () => {
       getRelationsInGroup: vi.fn((groupId: string) => (groupId === group.id ? [relation] : [])),
     };
     const provider = new TermNoteTreeProvider(
-      dataManager as any,
-      termNoteGroupManager as any,
-      relationManager as any
+      asDataManager(dataManager),
+      asTermNoteGroupManager(termNoteGroupManager),
+      asTermNoteRelationManager(relationManager)
     );
 
     const items = provider.getChildren();
     const childItems = provider.getChildren(items[0]);
 
     expect(items[0].contextValue).toBe('term-note-group');
+    expect(items[0].groupId).toBeUndefined();
     expect(childItems[0].contextValue).toBe('term-note');
     expect(childItems[0].label).toBe('User Table');
+    expect(childItems[0].groupId).toBe(group.id);
+    expect(childItems[0].command).toBeUndefined();
   });
 
   it('refreshes when term-note data manager events fire', () => {
@@ -464,9 +1082,9 @@ describe('TermNoteTreeProvider', () => {
     };
 
     const provider = new TermNoteTreeProvider(
-      dataManager as any,
-      termNoteGroupManager as any,
-      relationManager as any
+      asDataManager(dataManager),
+      asTermNoteGroupManager(termNoteGroupManager),
+      asTermNoteRelationManager(relationManager)
     );
     const refreshSpy = vi.spyOn(provider, 'refresh');
 
@@ -522,17 +1140,225 @@ describe('package contributions for term notes', () => {
     const packageJsonPath = path.resolve(__dirname, '..', '..', 'package.json');
     const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
     const commands = packageJson.contributes.commands as Array<{ command: string }>;
-    const views = packageJson.contributes.views.groupBookmarks as Array<{ id: string }>;
+    const views = packageJson.contributes.views.groupBookmarks as Array<{ id: string; type?: string }>;
 
     expect(commands.some(item => item.command === 'groupBookmarks.addTermNoteFromSelection')).toBe(true);
+    expect(commands.some(item => item.command === 'groupBookmarks.openTermNote')).toBe(true);
+    expect(commands.some(item => item.command === 'groupBookmarks.createTermNoteGroup')).toBe(true);
+    expect(commands.some(item => item.command === 'groupBookmarks.removeTermNoteFromGroup')).toBe(true);
+    expect(commands.some(item => item.command === 'groupBookmarks.deleteTermNote')).toBe(true);
+    expect(commands.some(item => item.command === 'groupBookmarks.addExistingTermNoteToGroup')).toBe(true);
+    expect(commands.some(item => item.command === 'groupBookmarks.setActiveTermNoteGroup')).toBe(true);
     expect(views.some(item => item.id === 'groupTermNotesView')).toBe(true);
+    expect(views).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'groupTermNotePreviewView',
+        type: 'webview',
+      }),
+    ]));
   });
 
-  it('does not add an editor context menu entry for adding term notes from selection', () => {
+  it('adds an editor context menu entry for adding term notes from selection', () => {
     const packageJsonPath = path.resolve(__dirname, '..', '..', 'package.json');
     const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+    const commands = packageJson.contributes.commands as Array<{ command: string; title?: string; category?: string }>;
     const editorContextMenus = packageJson.contributes.menus['editor/context'] as Array<{ command: string }>;
+    const menuEntry = editorContextMenus.find(item => item.command === 'groupBookmarks.addTermNoteFromSelection') as
+      | { command: string; group?: string; when?: string }
+      | undefined;
+    const commandEntry = commands.find(item => item.command === 'groupBookmarks.addTermNoteFromSelection');
 
-    expect(editorContextMenus.some(item => item.command === 'groupBookmarks.addTermNoteFromSelection')).toBe(false);
+    expect(commandEntry?.title).toBe('Add Note for Selection');
+    expect(commandEntry?.category).toBe('Group Bookmarks');
+    expect(menuEntry).toBeDefined();
+    expect(menuEntry?.when).toBe('editorTextFocus && editorHasSelection');
+    expect(menuEntry?.group).toBe('9_bookmarks@2');
+  });
+
+  it('adds context menu entries for term-note tree items', () => {
+    const packageJsonPath = path.resolve(__dirname, '..', '..', 'package.json');
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+    const viewContextMenus = packageJson.contributes.menus['view/item/context'] as Array<{ command: string; when?: string; group?: string }>;
+
+    const openEntry = viewContextMenus.find(item => item.command === 'groupBookmarks.openTermNote');
+    const removeEntry = viewContextMenus.find(item => item.command === 'groupBookmarks.removeTermNoteFromGroup');
+    const deleteEntry = viewContextMenus.find(item => item.command === 'groupBookmarks.deleteTermNote');
+    const addExistingEntry = viewContextMenus.find(item => item.command === 'groupBookmarks.addExistingTermNoteToGroup');
+    const setActiveEntry = viewContextMenus.find(item => item.command === 'groupBookmarks.setActiveTermNoteGroup');
+
+    expect(openEntry).toEqual(expect.objectContaining({
+      when: 'view == groupTermNotesView && viewItem == term-note',
+      group: 'inline',
+    }));
+    expect(setActiveEntry).toEqual(expect.objectContaining({
+      when: 'view == groupTermNotesView && viewItem == term-note-group',
+    }));
+    expect(removeEntry).toEqual(expect.objectContaining({
+      when: 'view == groupTermNotesView && viewItem == term-note',
+    }));
+    expect(deleteEntry).toEqual(expect.objectContaining({
+      when: 'view == groupTermNotesView && viewItem == term-note',
+    }));
+    expect(addExistingEntry).toEqual(expect.objectContaining({
+      when: 'view == groupTermNotesView && viewItem == term-note',
+    }));
+  });
+
+  it('adds a title-bar create action for the term-notes view', () => {
+    const packageJsonPath = path.resolve(__dirname, '..', '..', 'package.json');
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+    const titleMenus = packageJson.contributes.menus['view/title'] as Array<{ command: string; when?: string; group?: string }>;
+    const createEntry = titleMenus.find(item => item.command === 'groupBookmarks.createTermNoteGroup');
+
+    expect(createEntry).toEqual(expect.objectContaining({
+      when: 'view == groupTermNotesView',
+      group: 'navigation',
+    }));
+  });
+});
+
+describe('TermNoteSidebarPreviewProvider', () => {
+  it('renders an empty state before any term note is selected', () => {
+    const provider = new TermNoteSidebarPreviewProvider(
+      {
+        getById: vi.fn(),
+      } as unknown as Pick<TermNoteManager, 'getById'>,
+      {
+        getGroupsForTermNote: vi.fn().mockReturnValue([]),
+      } as unknown as Pick<TermNoteRelationManager, 'getGroupsForTermNote'>,
+      vi.fn(),
+      vi.fn()
+    );
+    const view = createWebviewView();
+
+    provider.resolveWebviewView(view as unknown as vscode.WebviewView);
+
+    expect(view.webview.html).toContain('Select a term note');
+  });
+
+  it('renders the selected term note as a formatted markdown preview and related groups', () => {
+    const note = makeNote('note-1', {
+      term: 'User Table',
+      contentMarkdown: '# Overview\n\nUsed by **API** layer.\n\n- indexed\n- cached\n\n> Important\n\n```ts\nconst stable = true;\n```',
+    });
+    const provider = new TermNoteSidebarPreviewProvider(
+      {
+        getById: vi.fn().mockReturnValue(note),
+      } as unknown as Pick<TermNoteManager, 'getById'>,
+      {
+        getGroupsForTermNote: vi.fn().mockReturnValue([
+          makeGroup('group-1', { displayName: '1. User Notes', name: 'User Notes' }),
+        ]),
+      } as unknown as Pick<TermNoteRelationManager, 'getGroupsForTermNote'>,
+      vi.fn(),
+      vi.fn()
+    );
+    const view = createWebviewView();
+
+    provider.resolveWebviewView(view as unknown as vscode.WebviewView);
+    provider.previewTermNote('note-1');
+
+    expect(view.webview.html).toContain('User Table');
+    expect(view.webview.html).toContain('1. User Notes');
+    expect(view.webview.html).toContain('<h1>Overview</h1>');
+    expect(view.webview.html).toContain('<p>Used by <strong>API</strong> layer.</p>');
+    expect(view.webview.html).toContain('<li>indexed</li>');
+    expect(view.webview.html).toContain('<li>cached</li>');
+    expect(view.webview.html).toContain('<blockquote><p>Important</p></blockquote>');
+    expect(view.webview.html).toContain('<pre><code class="language-ts">const stable = true;');
+    expect(view.webview.html).not.toContain('# Overview');
+    expect(view.webview.html).not.toContain('- indexed');
+    expect(view.webview.html).not.toContain('```ts');
+  });
+
+  it('renders markdown tables without leaking placeholder tokens', () => {
+    const note = makeNote('note-1', {
+      term: 'Storage Service',
+      contentMarkdown: [
+        '| 字段 | 备注 |',
+        '| --- | --- |',
+        '| `SERIALNO` | 持仓编号 |',
+        '| `TERMNO` | 投机/套保标志<br>分别记录在两张表 |',
+      ].join('\n'),
+    });
+    const provider = new TermNoteSidebarPreviewProvider(
+      {
+        getById: vi.fn().mockReturnValue(note),
+      } as unknown as Pick<TermNoteManager, 'getById'>,
+      {
+        getGroupsForTermNote: vi.fn().mockReturnValue([]),
+      } as unknown as Pick<TermNoteRelationManager, 'getGroupsForTermNote'>,
+      vi.fn(),
+      vi.fn()
+    );
+    const view = createWebviewView();
+
+    provider.resolveWebviewView(view as unknown as vscode.WebviewView);
+    provider.previewTermNote('note-1');
+
+    expect(view.webview.html).toContain('<table');
+    expect(view.webview.html).toContain('<th>字段</th>');
+    expect(view.webview.html).toContain('<code>SERIALNO</code>');
+    expect(view.webview.html).toContain('<code>TERMNO</code>');
+    expect(view.webview.html).toContain('投机/套保标志<br>');
+    expect(view.webview.html).not.toContain('@@TERMNOTE');
+    expect(view.webview.html).not.toContain('| `SERIALNO` |');
+    expect(view.webview.html).not.toContain('&lt;br&gt;');
+  });
+
+  it('refreshes the selected preview when term-note data changes', () => {
+    const termNotesEvent = createEventHook();
+    const termNoteRelationsEvent = createEventHook();
+    const getById = vi.fn()
+      .mockReturnValueOnce(makeNote('note-1', { term: 'User Table', contentMarkdown: 'Old body' }))
+      .mockReturnValueOnce(makeNote('note-1', { term: 'User Table', contentMarkdown: '## Updated body' }));
+    const provider = new TermNoteSidebarPreviewProvider(
+      {
+        getById,
+      } as unknown as Pick<TermNoteManager, 'getById'>,
+      {
+        getGroupsForTermNote: vi.fn().mockReturnValue([]),
+      } as unknown as Pick<TermNoteRelationManager, 'getGroupsForTermNote'>,
+      termNotesEvent.subscribe,
+      termNoteRelationsEvent.subscribe
+    );
+    const view = createWebviewView();
+
+    provider.resolveWebviewView(view as unknown as vscode.WebviewView);
+    provider.previewTermNote('note-1');
+    expect(view.webview.html).toContain('<p>Old body</p>');
+
+    termNotesEvent.fire();
+
+    expect(view.webview.html).toContain('<h2>Updated body</h2>');
+  });
+});
+
+describe('extension term-note tree preview wiring', () => {
+  it('registers a tree selection listener that previews the selected term note and clears on non-note items', () => {
+    const previewTermNote = vi.fn();
+    let selectionListener: ((event: { selection: Array<{ type?: string; dataId?: string }> }) => void) | undefined;
+    const treeView = {
+      onDidChangeSelection: vi.fn((listener: (event: { selection: Array<{ type?: string; dataId?: string }> }) => void) => {
+        selectionListener = listener;
+        return { dispose: vi.fn() };
+      }),
+    };
+    const context = createExtensionContext();
+
+    registerTermNoteTreePreviewSelectionListener(
+      asExtensionContext(context),
+      treeView as unknown as vscode.TreeView<TermNoteTreeItem>,
+      asSidebarPreviewProvider({ previewTermNote })
+    );
+
+    expect(treeView.onDidChangeSelection).toHaveBeenCalledTimes(1);
+    expect(context.subscriptions).toHaveLength(1);
+
+    selectionListener?.({ selection: [{ type: 'term-note', dataId: 'note-1' }] });
+    selectionListener?.({ selection: [{ type: 'term-note-group', dataId: 'group-1' }] });
+
+    expect(previewTermNote).toHaveBeenNthCalledWith(1, 'note-1');
+    expect(previewTermNote).toHaveBeenNthCalledWith(2, undefined);
   });
 });

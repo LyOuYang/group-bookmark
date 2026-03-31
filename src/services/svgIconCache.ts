@@ -103,7 +103,9 @@ export class SVGIconCache {
     private getTextColor(color: GroupColor): string {
         // 深色背景用白色字，浅色背景（如 Yellow）用黑色字
         if (color === GroupColor.Yellow || color === GroupColor.Green) {
-            if (color === GroupColor.Yellow) return '#333333';
+            if (color === GroupColor.Yellow) {
+                return '#333333';
+            }
         }
         return '#FFFFFF';
     }

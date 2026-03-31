@@ -55,6 +55,7 @@ export class TermNoteDocumentService implements vscode.FileSystemProvider {
     }
 
     async writeFile(uri: vscode.Uri, content: Uint8Array, _options: { create: boolean; overwrite: boolean }): Promise<void> {
+        void _options;
         const noteId = this.getNoteId(uri);
         const markdown = Buffer.from(content).toString('utf8');
         await this.updateTermNoteContent(noteId, markdown);

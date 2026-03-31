@@ -9,14 +9,46 @@ import { TermNoteGroupManager } from './core/termNoteGroupManager';
 import { TermNoteRelationManager } from './core/termNoteRelationManager';
 import { BookmarkTreeProvider } from './views/treeProvider';
 import { CommandHandler } from './views/commandHandler';
-import { TermNoteTreeProvider } from './views/termNoteTreeProvider';
+import { TermNoteTreeItem, TermNoteTreeProvider } from './views/termNoteTreeProvider';
 import { TermNoteCommandHandler } from './views/termNoteCommandHandler';
+import { TermNoteSidebarPreviewProvider } from './views/termNoteSidebarPreviewProvider';
 import { DecorationManager } from './views/decorationManager';
 import { BookmarkCodeLensProvider } from './views/codeLensProvider';
 import { ImportExportService } from './services/importExportService';
+import { TermNotePreviewService } from './services/termNotePreviewService';
 import { TermNoteDocumentService } from './services/termNoteDocumentService';
 import { PathUtils } from './utils/pathUtils';
 import { Logger } from './utils/logger';
+
+export function registerTermNotePreviewSelectionListener(
+    context: vscode.ExtensionContext,
+    termNotePreviewService: Pick<TermNotePreviewService, 'previewSelection'>
+): vscode.Disposable {
+    const disposable = vscode.window.onDidChangeTextEditorSelection(event => {
+        void termNotePreviewService.previewSelection(event.textEditor);
+    });
+
+    context.subscriptions.push(disposable);
+    return disposable;
+}
+
+export function registerTermNoteTreePreviewSelectionListener(
+    context: vscode.ExtensionContext,
+    treeView: Pick<vscode.TreeView<TermNoteTreeItem>, 'onDidChangeSelection'>,
+    termNoteSidebarPreviewProvider: Pick<TermNoteSidebarPreviewProvider, 'previewTermNote'>
+): vscode.Disposable {
+    const disposable = treeView.onDidChangeSelection(event => {
+        const selectedItem = event.selection[0];
+        const selectedNoteId = selectedItem?.type === 'term-note'
+            ? selectedItem.dataId
+            : undefined;
+
+        termNoteSidebarPreviewProvider.previewTermNote(selectedNoteId);
+    });
+
+    context.subscriptions.push(disposable);
+    return disposable;
+}
 
 /**
  * 插件激活时调用
@@ -64,8 +96,21 @@ export async function activate(context: vscode.ExtensionContext) {
             treeDataProvider: termNoteTreeProvider,
             showCollapseAll: true
         });
+        const termNoteSidebarPreviewProvider = new TermNoteSidebarPreviewProvider(
+            termNoteManager,
+            termNoteRelationManager,
+            dataManager.onDidChangeTermNotes,
+            dataManager.onDidChangeTermNoteRelations
+        );
 
         context.subscriptions.push(termNoteTreeView);
+        context.subscriptions.push(termNoteSidebarPreviewProvider);
+        context.subscriptions.push(
+            vscode.window.registerWebviewViewProvider(
+                'groupTermNotePreviewView',
+                termNoteSidebarPreviewProvider
+            )
+        );
         context.subscriptions.push(
             vscode.workspace.registerFileSystemProvider(
                 TermNoteDocumentService.scheme,
@@ -91,6 +136,14 @@ export async function activate(context: vscode.ExtensionContext) {
             termNoteDocumentService
         );
         termNoteCommandHandler.registerCommands(context);
+
+        const termNotePreviewService = new TermNotePreviewService(
+            termNoteManager,
+            termNoteRelationManager
+        );
+        context.subscriptions.push(termNotePreviewService);
+        registerTermNotePreviewSelectionListener(context, termNotePreviewService);
+        registerTermNoteTreePreviewSelectionListener(context, termNoteTreeView, termNoteSidebarPreviewProvider);
 
         // 初始化 DecorationManager
         const decorationManager = new DecorationManager(dataManager, groupManager, relationManager);

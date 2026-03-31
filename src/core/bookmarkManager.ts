@@ -67,7 +67,9 @@ export class BookmarkManager {
      * @param delta 行数变化量（正数向下，负数向上）
      */
     async shiftBookmarks(fileUri: string, afterLine: number, delta: number): Promise<void> {
-        if (delta === 0) return;
+        if (delta === 0) {
+            return;
+        }
 
         // 批量更新 DataManager 中的数据
         await this.dataManager.batchUpdateBookmarks(bookmark => {

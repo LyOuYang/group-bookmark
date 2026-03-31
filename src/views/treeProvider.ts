@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { Group, BookmarkGroup } from '../models/types';
+import { GroupColor } from '../models/types';
 import { DataManager } from '../data/dataManager';
 import { GroupManager } from '../core/groupManager';
 import { RelationManager } from '../core/relationManager';
@@ -56,7 +56,7 @@ export class BookmarkTreeProvider implements vscode.TreeDataProvider<BookmarkTre
         this._onDidChangeTreeData.fire();
     }
 
-    async resolveTreeItem(item: BookmarkTreeItem, element: BookmarkTreeItem, token: vscode.CancellationToken): Promise<vscode.TreeItem> {
+    async resolveTreeItem(item: BookmarkTreeItem): Promise<vscode.TreeItem> {
         if (item.type === 'bookmark') {
             try {
                 // Determine Relation ID (item.dataId is relation.id)
@@ -139,7 +139,6 @@ export class BookmarkTreeProvider implements vscode.TreeDataProvider<BookmarkTre
         */
 
         return groups.map(group => {
-            const count = this.groupManager.getBookmarkCountInGroup(group.id);
             const isActive = group.id === activeGroupId;
 
             // Req: Label 格式改为 "1. GroupName" (无数量)
@@ -155,8 +154,6 @@ export class BookmarkTreeProvider implements vscode.TreeDataProvider<BookmarkTre
             // Description 移除数量，保持干净? 用户说 "group后面的()统计tag数的不需要"
             // 之前放在 Label 后，后来放到 Description。现在 Description 也移除？
             // 保持 Description 干净，仅在 Active 时显示状态，或者完全留空
-            const description = isActive ? 'Active' : '';
-
             const item = new BookmarkTreeItem(
                 'group',
                 group.id,
@@ -220,40 +217,40 @@ export class BookmarkTreeProvider implements vscode.TreeDataProvider<BookmarkTre
     /**
      * 获取颜色图标
      */
-    private getColorIcon(color: string): string {
+    private getColorIcon(color: GroupColor | string): string {
         // 使用 emoji作为颜色标记
-        const colorMap: { [key: string]: string } = {
-            '#FF6B6B': '🔴',
-            '#FFA500': '🟠',
-            '#FFD700': '🟡',
-            '#4CAF50': '🟢',
-            '#2196F3': '🔵',
-            '#9C27B0': '🟣',
-            '#E91E63': '🔴',
-            '#9E9E9E': '⚫'
-        };
+        const colorMap = new Map<GroupColor, string>([
+            [GroupColor.Red, '🔴'],
+            [GroupColor.Orange, '🟠'],
+            [GroupColor.Yellow, '🟡'],
+            [GroupColor.Green, '🟢'],
+            [GroupColor.Blue, '🔵'],
+            [GroupColor.Purple, '🟣'],
+            [GroupColor.Pink, '🔴'],
+            [GroupColor.Gray, '⚫']
+        ]);
 
-        return colorMap[color] || '⚪';
+        return colorMap.get(color as GroupColor) || '⚪';
     }
 
     // ===== Drag and Drop Implementation =====
 
-    handleDrag(source: readonly BookmarkTreeItem[], dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): void | Thenable<void> {
-        if (source.length === 0) return;
+    handleDrag(source: readonly BookmarkTreeItem[], dataTransfer: vscode.DataTransfer): void | Thenable<void> {
+        if (source.length === 0) {return;}
 
         const item = source[0];
         // 仅支持拖拽书签
-        if (item.type !== 'bookmark') return;
+        if (item.type !== 'bookmark') {return;}
 
         dataTransfer.set('application/vnd.code.tree.groupBookmarks', new vscode.DataTransferItem(item));
     }
 
-    async handleDrop(target: BookmarkTreeItem | undefined, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<void> {
+    async handleDrop(target: BookmarkTreeItem | undefined, dataTransfer: vscode.DataTransfer): Promise<void> {
         const transferItem = dataTransfer.get('application/vnd.code.tree.groupBookmarks');
-        if (!transferItem) return;
+        if (!transferItem) {return;}
 
         const sourceItem = transferItem.value as BookmarkTreeItem;
-        if (!sourceItem || sourceItem.type !== 'bookmark') return;
+        if (!sourceItem || sourceItem.type !== 'bookmark') {return;}
 
         // 解析 Source Info
         // relation.id = bookmarkId_groupId
@@ -282,7 +279,7 @@ export class BookmarkTreeProvider implements vscode.TreeDataProvider<BookmarkTre
 
         // 2. Drop 到书签上 (排序 或 移动并排序)
         if (target && target.type === 'bookmark') {
-            const [targetBookmarkId, targetGroupId] = target.dataId.split('_');
+            const [, targetGroupId] = target.dataId.split('_');
 
             // 如果是同一个分组 -> 排序
             if (sourceGroupId === targetGroupId) {
@@ -292,7 +289,7 @@ export class BookmarkTreeProvider implements vscode.TreeDataProvider<BookmarkTre
 
                 const ids = relations.map(r => r.id);
                 const oldIndex = ids.indexOf(sourceRelationId);
-                if (oldIndex > -1) ids.splice(oldIndex, 1);
+                if (oldIndex > -1) {ids.splice(oldIndex, 1);}
 
                 // 插入到 target 之前
                 const newIndex = ids.indexOf(targetRelationId);

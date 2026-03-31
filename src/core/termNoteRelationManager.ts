@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { TermNoteGroupRelation } from '../models/types';
+import { TermNoteGroup, TermNoteGroupRelation } from '../models/types';
 import { DataManager } from '../data/dataManager';
 
 /**
@@ -67,6 +67,17 @@ export class TermNoteRelationManager {
         return this.dataManager.getAllTermNoteRelations()
             .filter(relation => relation.groupId === groupId)
             .sort((a, b) => a.order - b.order);
+    }
+
+    /**
+     * 获取某个词条所属的分组
+     */
+    getGroupsForTermNote(noteId: string): TermNoteGroup[] {
+        return this.dataManager.getAllTermNoteRelations()
+            .filter(relation => relation.termNoteId === noteId)
+            .map(relation => this.dataManager.getTermNoteGroup(relation.groupId))
+            .filter((group): group is TermNoteGroup => group !== undefined)
+            .sort((a, b) => a.order - b.order || a.displayName.localeCompare(b.displayName) || a.id.localeCompare(b.id));
     }
 
     /**

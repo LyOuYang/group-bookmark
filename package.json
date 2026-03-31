@@ -2,7 +2,7 @@
   "name": "group-bookmarks",
   "displayName": "Group Bookmarks",
   "description": "Source Code Bookmark Group Management | 源码书签分组管理",
-  "version": "1.0.9",
+  "version": "2.0.4",
   "publisher": "groupbookmarks",
   "repository": {
     "type": "git",
@@ -138,6 +138,42 @@
         "command": "groupBookmarks.addTermNoteFromSelection",
         "title": "Add Note for Selection",
         "category": "Group Bookmarks"
+      },
+      {
+        "command": "groupBookmarks.openTermNote",
+        "title": "Open Note",
+        "category": "Group Bookmarks",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "groupBookmarks.createTermNoteGroup",
+        "title": "New Term Note Group",
+        "category": "Group Bookmarks",
+        "icon": "$(add)"
+      },
+      {
+        "command": "groupBookmarks.removeTermNoteFromGroup",
+        "title": "Remove Note from Group",
+        "category": "Group Bookmarks",
+        "icon": "$(remove)"
+      },
+      {
+        "command": "groupBookmarks.deleteTermNote",
+        "title": "Delete Note",
+        "category": "Group Bookmarks",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "groupBookmarks.addExistingTermNoteToGroup",
+        "title": "Add Existing Note to Group",
+        "category": "Group Bookmarks",
+        "icon": "$(add)"
+      },
+      {
+        "command": "groupBookmarks.setActiveTermNoteGroup",
+        "title": "Set as Active Term Note Group",
+        "category": "Group Bookmarks",
+        "icon": "$(pin)"
       }
     ],
     "keybindings": [
@@ -180,6 +216,11 @@
         {
           "id": "groupTermNotesView",
           "name": "Term Notes"
+        },
+        {
+          "id": "groupTermNotePreviewView",
+          "name": "Preview",
+          "type": "webview"
         }
       ]
     },
@@ -189,6 +230,11 @@
           "command": "groupBookmarks.addBookmarkMenu",
           "group": "9_bookmarks@1",
           "when": "editorTextFocus"
+        },
+        {
+          "command": "groupBookmarks.addTermNoteFromSelection",
+          "group": "9_bookmarks@2",
+          "when": "editorTextFocus && editorHasSelection"
         }
       ],
       "view/title": [
@@ -205,6 +251,11 @@
         {
           "command": "groupBookmarks.createGroup",
           "when": "view == groupBookmarksView",
+          "group": "navigation"
+        },
+        {
+          "command": "groupBookmarks.createTermNoteGroup",
+          "when": "view == groupTermNotesView",
           "group": "navigation"
         }
       ],
@@ -264,6 +315,31 @@
         {
           "command": "groupBookmarks.deleteBookmark",
           "when": "view == groupBookmarksView && viewItem == bookmark"
+        },
+        {
+          "command": "groupBookmarks.openTermNote",
+          "when": "view == groupTermNotesView && viewItem == term-note",
+          "group": "inline"
+        },
+        {
+          "command": "groupBookmarks.addExistingTermNoteToGroup",
+          "when": "view == groupTermNotesView && viewItem == term-note",
+          "group": "1_manage@1"
+        },
+        {
+          "command": "groupBookmarks.removeTermNoteFromGroup",
+          "when": "view == groupTermNotesView && viewItem == term-note",
+          "group": "1_manage@2"
+        },
+        {
+          "command": "groupBookmarks.deleteTermNote",
+          "when": "view == groupTermNotesView && viewItem == term-note",
+          "group": "1_manage@3"
+        },
+        {
+          "command": "groupBookmarks.setActiveTermNoteGroup",
+          "when": "view == groupTermNotesView && viewItem == term-note-group",
+          "group": "1_manage@1"
         }
       ]
     }
@@ -277,7 +353,7 @@
     "test": "vitest run",
     "test:typecheck": "tsc -p tsconfig.vitest.json --noEmit",
     "test:watch": "vitest",
-    "lint": "eslint src --ext ts",
+    "lint": "eslint src tests --ext ts",
     "package": "vsce package"
   },
   "devDependencies": {

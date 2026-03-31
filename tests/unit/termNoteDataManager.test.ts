@@ -1,6 +1,7 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import type * as vscode from 'vscode';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GroupColor, type TermNote, type TermNoteGroup, type TermNoteGroupRelation } from '../../src/models/types';
 import { TermNoteManager } from '../../src/core/termNoteManager';
@@ -19,7 +20,7 @@ const mockState = vi.hoisted(() => ({
 }));
 
 vi.mock('vscode', () => {
-  class MockEventEmitter<T = void> {
+  class MockEventEmitter {
     event = vi.fn();
     fire = vi.fn();
     dispose = vi.fn();
@@ -47,6 +48,15 @@ type StorageDoubleSeed = {
   termNotes?: TermNote[];
   termNoteGroups?: TermNoteGroup[];
   termNoteRelations?: TermNoteGroupRelation[];
+};
+
+type WorkspaceStateDouble = {
+  get(key: string): string | undefined;
+  update(key: string, value: string | undefined): Promise<void>;
+};
+
+type WorkspaceContextDouble = {
+  workspaceState: WorkspaceStateDouble;
 };
 
 function createStorageDouble(seed: StorageDoubleSeed = {}) {
@@ -86,13 +96,13 @@ function createStorageDouble(seed: StorageDoubleSeed = {}) {
   };
 }
 
-function createWorkspaceContextDouble() {
+function createWorkspaceContextDouble(): WorkspaceContextDouble {
   const state = new Map<string, string | undefined>();
 
   return {
     workspaceState: {
-      get<T>(key: string): T | undefined {
-        return state.get(key) as T | undefined;
+      get(key: string): string | undefined {
+        return state.get(key);
       },
       async update(key: string, value: string | undefined): Promise<void> {
         if (value === undefined) {
@@ -104,6 +114,14 @@ function createWorkspaceContextDouble() {
       },
     },
   };
+}
+
+function asStorageService(value: unknown): StorageService {
+  return value as unknown as StorageService;
+}
+
+function asExtensionContext(value: unknown): vscode.ExtensionContext {
+  return value as vscode.ExtensionContext;
 }
 
 function createTempWorkspaceRoot() {
@@ -167,7 +185,7 @@ describe('StorageService', () => {
   it('loads missing term-note files as empty arrays', async () => {
     const root = createTempWorkspaceRoot();
     try {
-      const storage = new StorageService(createWorkspaceContextDouble() as any);
+      const storage = new StorageService(asExtensionContext(createWorkspaceContextDouble()));
 
       await expect(storage.loadTermNotes()).resolves.toEqual([]);
       await expect(storage.loadTermNoteGroups()).resolves.toEqual([]);
@@ -181,7 +199,7 @@ describe('StorageService', () => {
     const root = createTempWorkspaceRoot();
     try {
       const context = createWorkspaceContextDouble();
-      const storage = new StorageService(context as any);
+      const storage = new StorageService(asExtensionContext(context));
 
       const notes = [makeTermNote('note-1')];
       const groups = [makeTermNoteGroup('group-1', 0)];
@@ -191,7 +209,7 @@ describe('StorageService', () => {
       await storage.saveTermNoteGroups(groups);
       await storage.saveTermNoteRelations(relations);
 
-      const reloaded = new StorageService(context as any);
+      const reloaded = new StorageService(asExtensionContext(context));
 
       await expect(reloaded.loadTermNotes()).resolves.toEqual(notes);
       await expect(reloaded.loadTermNoteGroups()).resolves.toEqual(groups);
@@ -205,7 +223,7 @@ describe('StorageService', () => {
 describe('term note data manager', () => {
   it('loads and saves term notes, groups, and relations', async () => {
     const storage = createStorageDouble();
-    const manager = new DataManager(storage as any);
+    const manager = new DataManager(asStorageService(storage));
 
     await manager.loadAll();
     await manager.addTermNote(makeTermNote('user_table'));
@@ -224,7 +242,7 @@ describe('term note data manager', () => {
         makeTermNoteRelation('rel-4', 'note-2', 'group-2', 1),
       ],
     });
-    const manager = new DataManager(storage as any);
+    const manager = new DataManager(asStorageService(storage));
 
     await manager.loadAll();
 
@@ -273,7 +291,7 @@ describe('term note data manager', () => {
 
   it('tracks active term-note group separately from bookmark groups', async () => {
     const storage = createStorageDouble();
-    const manager = new DataManager(storage as any);
+    const manager = new DataManager(asStorageService(storage));
 
     await manager.setActiveTermNoteGroupId('term-group-1');
 
@@ -282,7 +300,7 @@ describe('term note data manager', () => {
 
   it('keeps the bookmark active group behavior intact', async () => {
     const storage = createStorageDouble();
-    const manager = new DataManager(storage as any);
+    const manager = new DataManager(asStorageService(storage));
 
     await manager.setActiveGroupId('bookmark-group-1');
 
@@ -291,7 +309,7 @@ describe('term note data manager', () => {
 
   it('rejects blank term creation', async () => {
     const storage = createStorageDouble();
-    const dataManager = new DataManager(storage as any);
+    const dataManager = new DataManager(asStorageService(storage));
     const manager = new TermNoteManager(dataManager);
 
     await expect(manager.createOrGetTermNote('   ')).rejects.toThrow('Term cannot be blank');
@@ -299,7 +317,7 @@ describe('term note data manager', () => {
 
   it('reuses an existing note when normalizedTerm matches', async () => {
     const storage = createStorageDouble();
-    const dataManager = new DataManager(storage as any);
+    const dataManager = new DataManager(asStorageService(storage));
     const manager = new TermNoteManager(dataManager);
 
     const first = await manager.createOrGetTermNote('User_Table');
@@ -309,7 +327,7 @@ describe('term note data manager', () => {
   });
   it('returns the note for getByNormalizedTerm', async () => {
     const storage = createStorageDouble();
-    const dataManager = new DataManager(storage as any);
+    const dataManager = new DataManager(asStorageService(storage));
     const manager = new TermNoteManager(dataManager);
 
     const note = await manager.createOrGetTermNote('User_Table');
@@ -319,7 +337,7 @@ describe('term note data manager', () => {
 
   it('updates content through the term note manager', async () => {
     const storage = createStorageDouble();
-    const dataManager = new DataManager(storage as any);
+    const dataManager = new DataManager(asStorageService(storage));
     const manager = new TermNoteManager(dataManager);
 
     const note = await manager.createOrGetTermNote('User_Table');
@@ -331,7 +349,7 @@ describe('term note data manager', () => {
 
   it('deletes a term note through the term note manager', async () => {
     const storage = createStorageDouble();
-    const dataManager = new DataManager(storage as any);
+    const dataManager = new DataManager(asStorageService(storage));
     const manager = new TermNoteManager(dataManager);
 
     const note = await manager.createOrGetTermNote('User_Table');
@@ -343,7 +361,7 @@ describe('term note data manager', () => {
 
   it('creates, renames, deletes, and tracks active term-note groups', async () => {
     const storage = createStorageDouble();
-    const dataManager = new DataManager(storage as any);
+    const dataManager = new DataManager(asStorageService(storage));
     const groupManager = new TermNoteGroupManager(dataManager);
 
     const group = await groupManager.createGroup('User Notes', GroupColor.Green);
@@ -364,7 +382,7 @@ describe('term note data manager', () => {
 
   it('clears the active term-note group state when deleting the active group', async () => {
     const storage = createStorageDouble();
-    const dataManager = new DataManager(storage as any);
+    const dataManager = new DataManager(asStorageService(storage));
     const groupManager = new TermNoteGroupManager(dataManager);
 
     const group = await groupManager.createGroup('User Notes');
@@ -376,7 +394,7 @@ describe('term note data manager', () => {
 
   it('rejects setting the active term-note group to a nonexistent id', async () => {
     const storage = createStorageDouble();
-    const dataManager = new DataManager(storage as any);
+    const dataManager = new DataManager(asStorageService(storage));
     const groupManager = new TermNoteGroupManager(dataManager);
 
     await expect(groupManager.setActiveTermNoteGroupId('missing-group')).rejects.toThrow(
@@ -387,7 +405,7 @@ describe('term note data manager', () => {
 
   it('rejects blank term-note group creation', async () => {
     const storage = createStorageDouble();
-    const dataManager = new DataManager(storage as any);
+    const dataManager = new DataManager(asStorageService(storage));
     const groupManager = new TermNoteGroupManager(dataManager);
 
     await expect(groupManager.createGroup('   ')).rejects.toThrow('Group name cannot be blank');
@@ -395,7 +413,7 @@ describe('term note data manager', () => {
 
   it('trims term-note group names before persistence', async () => {
     const storage = createStorageDouble();
-    const dataManager = new DataManager(storage as any);
+    const dataManager = new DataManager(asStorageService(storage));
     const groupManager = new TermNoteGroupManager(dataManager);
 
     const group = await groupManager.createGroup('  User Notes  ');
@@ -407,7 +425,7 @@ describe('term note data manager', () => {
 
   it('rejects blank term-note group rename', async () => {
     const storage = createStorageDouble();
-    const dataManager = new DataManager(storage as any);
+    const dataManager = new DataManager(asStorageService(storage));
     const groupManager = new TermNoteGroupManager(dataManager);
 
     const group = await groupManager.createGroup('User Notes');
@@ -417,7 +435,7 @@ describe('term note data manager', () => {
 
   it('trims term-note group rename values before persistence', async () => {
     const storage = createStorageDouble();
-    const dataManager = new DataManager(storage as any);
+    const dataManager = new DataManager(asStorageService(storage));
     const groupManager = new TermNoteGroupManager(dataManager);
 
     const group = await groupManager.createGroup('User Notes');
@@ -433,7 +451,7 @@ describe('term note data manager', () => {
       termNoteGroups: [makeTermNoteGroup('group-a', 0)],
       termNoteRelations: [makeTermNoteRelation('relation-1', 'note-1', 'group-a', 0)],
     });
-    const dataManager = new DataManager(storage as any);
+    const dataManager = new DataManager(asStorageService(storage));
     const relationManager = new TermNoteRelationManager(dataManager);
 
     await dataManager.loadAll();
@@ -454,7 +472,7 @@ describe('term note data manager', () => {
         makeTermNoteRelation('rel-b', 'note-1', 'group-b', 0),
       ],
     });
-    const dataManager = new DataManager(storage as any);
+    const dataManager = new DataManager(asStorageService(storage));
     const relationManager = new TermNoteRelationManager(dataManager);
 
     await dataManager.loadAll();
@@ -471,7 +489,7 @@ describe('term note data manager', () => {
       termNoteGroups: [makeTermNoteGroup('group-a', 0)],
       termNoteRelations: [makeTermNoteRelation('rel-a', 'note-1', 'group-a', 0)],
     });
-    const dataManager = new DataManager(storage as any);
+    const dataManager = new DataManager(asStorageService(storage));
     const relationManager = new TermNoteRelationManager(dataManager);
 
     await dataManager.loadAll();

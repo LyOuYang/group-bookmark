@@ -87,7 +87,9 @@ export class GroupManager {
      */
     async toggleGroupGhostText(id: string): Promise<void> {
         const group = this.dataManager.getGroup(id);
-        if (!group) return;
+        if (!group) {
+            return;
+        }
 
         // 如果未定义，视为 true，取反为 false
         const current = group.showGhostText !== false;
@@ -119,7 +121,7 @@ export class GroupManager {
         return this.dataManager.getActiveGroupId();
     }
 
-    async setActiveGroup(id: string): Promise<void> {
+    async setActiveGroup(id: string | undefined): Promise<void> {
         await this.dataManager.setActiveGroupId(id);
     }
 }
