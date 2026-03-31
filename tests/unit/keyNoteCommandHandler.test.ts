@@ -1287,7 +1287,9 @@ describe('KeyNoteSidebarPreviewProvider', () => {
     const provider = new KeyNoteSidebarPreviewProvider(
       {
         getById: vi.fn(),
-      } as unknown as Pick<KeyNoteManager, 'getById'>,
+        getByNormalizedTerm: vi.fn(),
+        createOrGetKeyNote: vi.fn()
+      } as unknown as Pick<KeyNoteManager, 'getById' | 'getByNormalizedTerm' | 'createOrGetKeyNote'>,
       {
         getGroupsForKeyNote: vi.fn().mockReturnValue([]),
         addKeyNoteToGroup: vi.fn(),
@@ -1316,7 +1318,9 @@ describe('KeyNoteSidebarPreviewProvider', () => {
     const provider = new KeyNoteSidebarPreviewProvider(
       {
         getById: vi.fn().mockReturnValue(note),
-      } as unknown as Pick<KeyNoteManager, 'getById'>,
+        getByNormalizedTerm: vi.fn(),
+        createOrGetKeyNote: vi.fn()
+      } as unknown as Pick<KeyNoteManager, 'getById' | 'getByNormalizedTerm' | 'createOrGetKeyNote'>,
       {
         getGroupsForKeyNote: vi.fn().mockReturnValue([
           makeGroup('group-1', { displayName: '1. User Notes', name: 'User Notes' }),
@@ -1364,7 +1368,9 @@ describe('KeyNoteSidebarPreviewProvider', () => {
     const provider = new KeyNoteSidebarPreviewProvider(
       {
         getById: vi.fn().mockReturnValue(note),
-      } as unknown as Pick<KeyNoteManager, 'getById'>,
+        getByNormalizedTerm: vi.fn(),
+        createOrGetKeyNote: vi.fn()
+      } as unknown as Pick<KeyNoteManager, 'getById' | 'getByNormalizedTerm' | 'createOrGetKeyNote'>,
       {
         getGroupsForKeyNote: vi.fn().mockReturnValue([]),
         addKeyNoteToGroup: vi.fn(),
@@ -1401,7 +1407,9 @@ describe('KeyNoteSidebarPreviewProvider', () => {
     const provider = new KeyNoteSidebarPreviewProvider(
       {
         getById,
-      } as unknown as Pick<KeyNoteManager, 'getById'>,
+        getByNormalizedTerm: vi.fn(),
+        createOrGetKeyNote: vi.fn()
+      } as unknown as Pick<KeyNoteManager, 'getById' | 'getByNormalizedTerm' | 'createOrGetKeyNote'>,
       {
         getGroupsForKeyNote: vi.fn().mockReturnValue([]),
         addKeyNoteToGroup: vi.fn(),
@@ -1433,7 +1441,9 @@ describe('KeyNoteSidebarPreviewProvider', () => {
     const provider = new KeyNoteSidebarPreviewProvider(
       {
         getById: vi.fn(() => makeNote('note-1', { term: 'User Table', contentMarkdown: currentContent })),
-      } as unknown as Pick<KeyNoteManager, 'getById'>,
+        getByNormalizedTerm: vi.fn(),
+        createOrGetKeyNote: vi.fn()
+      } as unknown as Pick<KeyNoteManager, 'getById' | 'getByNormalizedTerm' | 'createOrGetKeyNote'>,
       {
         getGroupsForKeyNote: vi.fn().mockReturnValue([]),
         addKeyNoteToGroup: vi.fn(),
@@ -1468,7 +1478,9 @@ describe('KeyNoteSidebarPreviewProvider', () => {
     const provider = new KeyNoteSidebarPreviewProvider(
       {
         getById: vi.fn().mockReturnValue(makeNote('note-1', { term: 'User Table', contentMarkdown: 'Body' })),
-      } as unknown as Pick<KeyNoteManager, 'getById'>,
+        getByNormalizedTerm: vi.fn(),
+        createOrGetKeyNote: vi.fn()
+      } as unknown as Pick<KeyNoteManager, 'getById' | 'getByNormalizedTerm' | 'createOrGetKeyNote'>,
       {
         getGroupsForKeyNote: vi.fn().mockReturnValue([]),
         addKeyNoteToGroup: vi.fn(),

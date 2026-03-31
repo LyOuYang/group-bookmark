@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { KeyNoteManager } from '../core/keyNoteManager';
 import { KeyNoteRelationManager } from '../core/keyNoteRelationManager';
 import { KeyNoteGroupManager } from '../core/keyNoteGroupManager';
+import { extractNormalizedTerm } from '../utils/keyNoteUtils';
 
 const EMPTY_PREVIEW_TITLE = 'Select a key note';
 const EMPTY_PREVIEW_BODY = 'Click a note in the Key Notes list to preview it here.';
@@ -240,8 +241,14 @@ export class KeyNoteSidebarPreviewProvider implements vscode.WebviewViewProvider
     private draftContent = '';
     private readonly disposables: vscode.Disposable[];
 
+    // Auto Follow State
+    private isAutoFollowEnabled = true;
+    private draftTerm: string | undefined;
+    private isDirty = false;
+    private selectionTimeout: NodeJS.Timeout | undefined;
+
     constructor(
-        private readonly keyNoteManager: Pick<KeyNoteManager, 'getById'>,
+        private readonly keyNoteManager: Pick<KeyNoteManager, 'getById' | 'getByNormalizedTerm' | 'createOrGetKeyNote'>,
         private readonly keyNoteRelationManager: Pick<KeyNoteRelationManager, 'getGroupsForKeyNote' | 'addKeyNoteToGroup'>,
         private readonly keyNoteGroupManager: Pick<KeyNoteGroupManager, 'getAllGroups' | 'getActiveKeyNoteGroupId' | 'setActiveKeyNoteGroupId' | 'createGroup'>,
         onDidChangeKeyNotes: vscode.Event<void>,
@@ -250,7 +257,8 @@ export class KeyNoteSidebarPreviewProvider implements vscode.WebviewViewProvider
     ) {
         this.disposables = [
             onDidChangeKeyNotes(() => this.render()),
-            onDidChangeKeyNoteRelations(() => this.render())
+            onDidChangeKeyNoteRelations(() => this.render()),
+            vscode.window.onDidChangeTextEditorSelection(e => this.onSelectionChange(e))
         ];
     }
 
@@ -281,10 +289,60 @@ export class KeyNoteSidebarPreviewProvider implements vscode.WebviewViewProvider
 
     editKeyNote(noteId: string): void {
         this.selectedNoteId = noteId;
+        this.draftTerm = undefined;
+        this.isDirty = false;
         this.mode = 'edit';
         this.syncDraftContent();
         void this.revealEditorView();
         this.render();
+    }
+
+    private onSelectionChange(event: vscode.TextEditorSelectionChangeEvent): void {
+        if (!this.isAutoFollowEnabled || !this.webviewView || !this.webviewView.visible || this.isDirty) {
+            return;
+        }
+
+        if (this.selectionTimeout) {
+            clearTimeout(this.selectionTimeout);
+        }
+
+        this.selectionTimeout = setTimeout(() => {
+            // Re-validate view states
+            if (!this.webviewView || !this.webviewView.visible || this.isDirty) return;
+
+            if (event.selections.length !== 1) return;
+            const selection = event.selections[0];
+            if (selection.isEmpty || !selection.isSingleLine) return;
+            
+            const text = event.textEditor.document.getText(selection).trim();
+            if (text.length < 2 || text.length > 64 || /\\s/.test(text)) {
+                return;
+            }
+
+            void this.handleAutoFollowWord(text);
+        }, 300);
+    }
+
+    private async handleAutoFollowWord(word: string): Promise<void> {
+        const normalized = extractNormalizedTerm(word);
+        if (!normalized) return;
+
+        const existingNote = this.keyNoteManager.getByNormalizedTerm(normalized);
+        if (existingNote) {
+            this.selectedNoteId = existingNote.id;
+            this.draftTerm = undefined;
+            this.mode = 'preview';
+            this.isDirty = false;
+            this.syncDraftContent();
+            this.render();
+        } else {
+            this.selectedNoteId = undefined;
+            this.draftTerm = word;
+            this.mode = 'edit';
+            this.draftContent = '';
+            this.isDirty = false;
+            this.render();
+        }
     }
 
     private render(): void {
@@ -296,7 +354,7 @@ export class KeyNoteSidebarPreviewProvider implements vscode.WebviewViewProvider
             ? this.keyNoteManager.getById(this.selectedNoteId)
             : undefined;
 
-        if (!this.selectedNoteId) {
+        if (!this.selectedNoteId && !this.draftTerm) {
             this.webviewView.webview.html = this.renderHtml({
                 title: EMPTY_PREVIEW_TITLE,
                 bodyHtml: `<p>${escapeHtml(EMPTY_PREVIEW_BODY)}</p>`,
@@ -306,7 +364,7 @@ export class KeyNoteSidebarPreviewProvider implements vscode.WebviewViewProvider
             return;
         }
 
-        if (!note) {
+        if (this.selectedNoteId && !note) {
             this.webviewView.webview.html = this.renderHtml({
                 title: EMPTY_PREVIEW_TITLE,
                 bodyHtml: `<p>${escapeHtml(MISSING_PREVIEW_BODY)}</p>`,
@@ -316,14 +374,14 @@ export class KeyNoteSidebarPreviewProvider implements vscode.WebviewViewProvider
             return;
         }
 
-        const previewBodyHtml = renderMarkdown(note.contentMarkdown) || `<p class="muted">${escapeHtml(EMPTY_NOTE_BODY)}</p>`;
-        const groups = this.keyNoteRelationManager.getGroupsForKeyNote(note.id)
-            .map(group => group.displayName);
+        const title = note ? note.term : (this.draftTerm || 'New Key Note');
+        const previewBodyHtml = note ? (renderMarkdown(note.contentMarkdown) || `<p class="muted">${escapeHtml(EMPTY_NOTE_BODY)}</p>`) : '';
+        const groups = note ? this.keyNoteRelationManager.getGroupsForKeyNote(note.id).map(group => group.displayName) : [];
 
         this.webviewView.webview.html = this.renderHtml({
-            title: note.term,
+            title: title,
             bodyHtml: this.mode === 'edit'
-                ? this.renderEditorHtml(note.id)
+                ? this.renderEditorHtml(note?.id)
                 : this.renderPreviewHtml(previewBodyHtml),
             groups,
             muted: false
@@ -342,18 +400,36 @@ export class KeyNoteSidebarPreviewProvider implements vscode.WebviewViewProvider
             return;
         }
 
-        const typedMessage = message as { type?: string; content?: string; groupId?: string };
+        const typedMessage = message as { type?: string; content?: string; groupId?: string; isDirty?: boolean };
+
+        if (typedMessage.type === 'toggleAutoFollow') {
+            this.isAutoFollowEnabled = !this.isAutoFollowEnabled;
+            this.render();
+            return;
+        }
+
+        if (typedMessage.type === 'dirty') {
+            this.isDirty = true;
+            return;
+        }
 
         if (typedMessage.type === 'edit') {
             this.mode = 'edit';
+            this.isDirty = false;
             this.syncDraftContent();
             this.render();
             return;
         }
 
         if (typedMessage.type === 'cancel') {
-            this.mode = 'preview';
-            this.syncDraftContent();
+            this.isDirty = false;
+            if (!this.selectedNoteId) {
+                this.draftTerm = undefined;
+                this.mode = 'preview';
+            } else {
+                this.mode = 'preview';
+                this.syncDraftContent();
+            }
             this.render();
             return;
         }
@@ -377,13 +453,25 @@ export class KeyNoteSidebarPreviewProvider implements vscode.WebviewViewProvider
         }
 
         if (typedMessage.type === 'save' && typeof typedMessage.content === 'string' && this.updateKeyNoteContent) {
-            await this.updateKeyNoteContent(this.selectedNoteId, typedMessage.content);
+            let noteId = this.selectedNoteId;
+            
+            if (!noteId && this.draftTerm) {
+                const newNote = await this.keyNoteManager.createOrGetKeyNote(this.draftTerm);
+                noteId = newNote.id;
+                this.selectedNoteId = noteId;
+                this.draftTerm = undefined;
+            }
+
+            if (!noteId) return;
+
+            await this.updateKeyNoteContent(noteId, typedMessage.content);
             if (typedMessage.groupId) {
                 // 如果用户刚刚选择了分组，或者已有分组，通过保存事件强关联
-                await this.keyNoteRelationManager.addKeyNoteToGroup(this.selectedNoteId, typedMessage.groupId);
+                await this.keyNoteRelationManager.addKeyNoteToGroup(noteId, typedMessage.groupId);
                 await this.keyNoteGroupManager.setActiveKeyNoteGroupId(typedMessage.groupId);
             }
             this.draftContent = typedMessage.content;
+            this.isDirty = false;
             this.mode = 'preview';
             this.render();
         }
@@ -398,10 +486,10 @@ export class KeyNoteSidebarPreviewProvider implements vscode.WebviewViewProvider
         await vscode.commands.executeCommand(TERM_NOTE_EDITOR_PANEL_COMMAND);
     }
 
-    private renderEditorHtml(noteId: string): string {
+    private renderEditorHtml(noteId: string | undefined): string {
         const allGroups = this.keyNoteGroupManager.getAllGroups();
         const activeGroupId = this.keyNoteGroupManager.getActiveKeyNoteGroupId();
-        const existingGroups = this.keyNoteRelationManager.getGroupsForKeyNote(noteId);
+        const existingGroups = noteId ? this.keyNoteRelationManager.getGroupsForKeyNote(noteId) : undefined;
         
         let targetGroupId = '';
         if (existingGroups && existingGroups.length > 0) {
@@ -480,6 +568,13 @@ ${previewBodyHtml}`;
             display: grid;
             gap: 10px;
             grid-template-rows: auto auto minmax(0, 1fr) auto;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: nowrap;
         }
 
         .title {
@@ -631,6 +726,16 @@ ${previewBodyHtml}`;
             cursor: pointer;
         }
 
+        .button.small-button {
+            padding: 2px 6px;
+            font-size: 10px;
+            opacity: 0.85;
+        }
+
+        .button.small-button:hover {
+            opacity: 1;
+        }
+
         .button.primary {
             background: var(--vscode-button-background);
             color: var(--vscode-button-foreground);
@@ -674,7 +779,10 @@ ${previewBodyHtml}`;
 </head>
 <body>
     <div class="shell">
-        <h3 class="title">${escapeHtml(title)}</h3>
+        <div class="header">
+            <h3 class="title">${escapeHtml(title)}</h3>
+            <button class="button small-button" data-action="toggleAutoFollow" title="Auto Focus from Editor Selection">${this.isAutoFollowEnabled ? '🔗 Auto Follow: ON' : 'Auto Follow: OFF'}</button>
+        </div>
         ${groupMarkup}
         <div class="${bodyClass}">${bodyHtml}</div>
         <div class="hint">Use Open Note when you need the note in a standalone markdown tab.</div>
@@ -683,6 +791,12 @@ ${previewBodyHtml}`;
         const vscode = acquireVsCodeApi();
         const editor = document.getElementById('key-note-editor');
         const select = document.getElementById('key-note-group');
+        
+        if (editor) {
+            editor.addEventListener('input', () => {
+                vscode.postMessage({ type: 'dirty' });
+            });
+        }
         
         if (select) {
             let previousValue = select.value;
