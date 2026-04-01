@@ -249,6 +249,9 @@ export class KeyNoteSidebarPreviewProvider implements vscode.WebviewViewProvider
     // Ready handshake: true only after webview JS sends 'ready'
     private webviewReady = false;
 
+    private readonly _onDidAutoFollowNote = new vscode.EventEmitter<string>();
+    public readonly onDidAutoFollowNote = this._onDidAutoFollowNote.event;
+
     constructor(
         private readonly keyNoteManager: Pick<KeyNoteManager, 'getById' | 'getByNormalizedTerm' | 'createOrGetKeyNote'>,
         private readonly keyNoteRelationManager: Pick<KeyNoteRelationManager, 'getGroupsForKeyNote' | 'addKeyNoteToGroup'>,
@@ -301,7 +304,7 @@ export class KeyNoteSidebarPreviewProvider implements vscode.WebviewViewProvider
     }
 
     private onSelectionChange(event: vscode.TextEditorSelectionChangeEvent): void {
-        if (!this.isAutoFollowEnabled || !this.webviewView || !this.webviewView.visible || this.isDirty) {
+        if (!this.isAutoFollowEnabled || !this.webviewView || !this.webviewView.visible || this.mode === 'edit') {
             return;
         }
 
@@ -338,10 +341,12 @@ export class KeyNoteSidebarPreviewProvider implements vscode.WebviewViewProvider
             this.isDirty = false;
             this.syncDraftContent();
             this.render();
+            // 通知外部我们执行了一次合法的跟随
+            this._onDidAutoFollowNote.fire(existingNote.id);
         } else {
             this.selectedNoteId = undefined;
             this.draftTerm = word;
-            this.mode = 'edit';
+            this.mode = 'preview';
             this.draftContent = '';
             this.isDirty = false;
             this.render();
@@ -471,7 +476,10 @@ export class KeyNoteSidebarPreviewProvider implements vscode.WebviewViewProvider
         }
         const title = note ? note.term : (this.draftTerm ?? 'New Key Note');
         const groups = note ? this.keyNoteRelationManager.getGroupsForKeyNote(note.id).map(g => g.displayName) : [];
-        const bodyHtml = note ? (renderMarkdown(note.contentMarkdown) || `<p class="muted">${escapeHtml(EMPTY_NOTE_BODY)}</p>`) : '';
+        let bodyHtml = note ? (renderMarkdown(note.contentMarkdown) || `<p class="muted">${escapeHtml(EMPTY_NOTE_BODY)}</p>`) : '';
+        if (!note && this.mode === 'preview') {
+            bodyHtml = `<p class="muted"><em>No note yet.</em> Click the <strong>Edit</strong> icon (✏️) to create one.</p>`;
+        }
         const allGroups = this.keyNoteGroupManager.getAllGroups();
         const activeGroupId = this.keyNoteGroupManager.getActiveKeyNoteGroupId();
         const existingGroups = note ? this.keyNoteRelationManager.getGroupsForKeyNote(note.id) : undefined;
@@ -764,6 +772,99 @@ export class KeyNoteSidebarPreviewProvider implements vscode.WebviewViewProvider
         saveBtn.addEventListener('click', doSave);
         cancelBtn.addEventListener('click', () => { clientDirty = false; vscode.postMessage({ type: 'cancel' }); });
         
+        function tryParseTableText(text) {
+            if (!text || text.trim().length === 0) return null;
+            
+            const isTsv = text.indexOf('\\t') !== -1;
+            // Heuristic: if no tab and no comma, it's definitely not CSV/TSV
+            if (!isTsv && text.indexOf(',') === -1) return null;
+            
+            const separator = isTsv ? '\\t' : ',';
+            
+            const rows = [];
+            let currentRow = [];
+            let currentCell = '';
+            let inQuotes = false;
+            
+            for (let i = 0; i < text.length; i++) {
+                const char = text[i];
+                if (char === '"') {
+                    if (inQuotes && text[i + 1] === '"') {
+                        currentCell += '"';
+                        i++; // consume matched escaped quote
+                    } else {
+                        inQuotes = !inQuotes;
+                    }
+                } else if (char === separator && !inQuotes) {
+                    currentRow.push(currentCell.trim());
+                    currentCell = '';
+                } else if (char === '\\n' && !inQuotes) {
+                    if (currentCell.endsWith('\\r')) {
+                        currentCell = currentCell.slice(0, -1);
+                    }
+                    currentRow.push(currentCell.trim());
+                    rows.push(currentRow);
+                    currentRow = [];
+                    currentCell = '';
+                } else {
+                    currentCell += char;
+                }
+            }
+            if (currentCell || currentRow.length > 0) {
+                if (currentCell.endsWith('\\r')) {
+                    currentCell = currentCell.slice(0, -1);
+                }
+                currentRow.push(currentCell.trim());
+                rows.push(currentRow);
+            }
+            
+            // Remove empty rows at the end caused by trailing newlines
+            while (rows.length > 0) {
+                const lastRow = rows[rows.length - 1];
+                if (lastRow.every(cell => cell === '')) {
+                    rows.pop();
+                } else {
+                    break;
+                }
+            }
+            
+            if (rows.length < 2) return null; 
+            
+            const colCount = rows[0].length;
+            if (colCount < 2) return null; 
+            
+            // Must be a consistent grid to be considered a valid table format to convert
+            const isConsistent = rows.every(row => row.length === colCount);
+            if (!isConsistent) return null;
+            
+            // Generate markdown table
+            let mdTable = '\\n\\n';
+            const headers = rows[0];
+            mdTable += '| ' + headers.map(h => h.replace(/\\|/g, '\\\\|').replace(/\\r?\\n/g, '<br>')).join(' | ') + ' |\\n';
+            mdTable += '| ' + headers.map(() => '---').join(' | ') + ' |\\n';
+            
+            for (let i = 1; i < rows.length; i++) {
+                mdTable += '| ' + rows[i].map(c => c.replace(/\\|/g, '\\\\|').replace(/\\r?\\n/g, '<br>')).join(' | ') + ' |\\n';
+            }
+            
+            return mdTable + '\\n';
+        }
+
+        editorEl.addEventListener('paste', e => {
+            const text = (e.clipboardData || window.clipboardData).getData('text');
+            if (!text) return;
+            
+            const mdTable = tryParseTableText(text);
+            if (mdTable) {
+                e.preventDefault();
+                const start = editorEl.selectionStart;
+                const end = editorEl.selectionEnd;
+                editorEl.value = editorEl.value.substring(0, start) + mdTable + editorEl.value.substring(end);
+                editorEl.selectionStart = editorEl.selectionEnd = start + mdTable.length;
+                if (!clientDirty) { clientDirty = true; vscode.postMessage({ type: 'dirty' }); }
+            }
+        });
+
         window.addEventListener('keydown', e => {
             if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); doSave(); }
         });

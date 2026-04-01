@@ -50,17 +50,10 @@ export function registerKeyNoteSelectionRevealListener(
     context: vscode.ExtensionContext,
     treeView: Pick<vscode.TreeView<KeyNoteTreeItem>, 'reveal'>,
     keyNoteTreeProvider: Pick<KeyNoteTreeProvider, 'getRevealItemForNoteId'>,
-    keyNotePreviewService: Pick<KeyNotePreviewService, 'getSelectedKeyNote'>,
-    keyNoteSidebarPreviewProvider: Pick<KeyNoteSidebarPreviewProvider, 'previewKeyNote'>
+    keyNoteSidebarPreviewProvider: Pick<KeyNoteSidebarPreviewProvider, 'onDidAutoFollowNote'>
 ): vscode.Disposable {
-    const disposable = vscode.window.onDidChangeTextEditorSelection(async event => {
-        const note = keyNotePreviewService.getSelectedKeyNote(event.textEditor);
-        if (!note) {
-            return;
-        }
-
-        keyNoteSidebarPreviewProvider.previewKeyNote(note.id);
-        const revealItem = keyNoteTreeProvider.getRevealItemForNoteId(note.id);
+    const disposable = keyNoteSidebarPreviewProvider.onDidAutoFollowNote(async noteId => {
+        const revealItem = keyNoteTreeProvider.getRevealItemForNoteId(noteId);
         if (!revealItem) {
             return;
         }
@@ -177,7 +170,6 @@ export async function activate(context: vscode.ExtensionContext) {
             context,
             keyNoteTreeView,
             keyNoteTreeProvider,
-            keyNotePreviewService,
             keyNoteSidebarPreviewProvider
         );
 

@@ -388,7 +388,11 @@ describe('KeyNoteCommandHandler', () => {
       'groupBookmarks.setActiveKeyNoteGroup',
       expect.any(Function)
     );
-    expect(context.subscriptions).toHaveLength(9);
+    expect(mockState.commands.registerCommand).toHaveBeenCalledWith(
+      'groupBookmarks.addKeyNoteToGroup',
+      expect.any(Function)
+    );
+    expect(context.subscriptions).toHaveLength(10);
   });
 
   it('opens the custom key-note document after creating or finding the note when no panel editor is available', async () => {
@@ -530,6 +534,50 @@ describe('KeyNoteCommandHandler', () => {
     expect(relationManager.addKeyNoteToGroup).not.toHaveBeenCalled();
     expect(mockState.window.showQuickPick).not.toHaveBeenCalled();
     expect(mockState.window.showInputBox).not.toHaveBeenCalled();
+  });
+
+  it('prompts for a term and adds a new key note to an existing group from the sidebar', async () => {
+    const keyNote = makeNote('note-custom', { term: 'CustomTerm' });
+    const group = makeGroup('group-1', { displayName: '1. Group', name: 'Group' });
+
+    const keyNoteManager = {
+      createOrGetKeyNote: vi.fn().mockResolvedValue(keyNote),
+      deleteKeyNote: vi.fn(),
+    };
+    const keyNoteGroupManager = {
+      getActiveKeyNoteGroupId: vi.fn(),
+      getGroupById: vi.fn(),
+      getAllGroups: vi.fn().mockReturnValue([group]),
+    };
+    const relationManager = {
+      addKeyNoteToGroup: vi.fn().mockResolvedValue(undefined),
+      removeKeyNoteFromGroup: vi.fn(),
+      deleteKeyNoteEverywhere: vi.fn(),
+      getGroupsForKeyNote: vi.fn().mockReturnValue([]),
+    };
+
+    mockState.window.showInputBox.mockResolvedValue('CustomTerm');
+
+    const editKeyNote = vi.fn();
+    const handler = new KeyNoteCommandHandler(
+      asKeyNoteManager(keyNoteManager),
+      asKeyNoteGroupManager(keyNoteGroupManager),
+      asKeyNoteRelationManager(relationManager),
+      asKeyNoteDocumentService({ openNoteDocument: vi.fn() }),
+      { editKeyNote }
+    );
+
+    await handler.addKeyNoteToGroup({
+      dataId: group.id,
+      label: 'Group',
+    } as KeyNoteTreeItemLike);
+
+    expect(mockState.window.showInputBox).toHaveBeenCalledWith(
+      expect.objectContaining({ prompt: 'Enter term/word for the new Key Note' })
+    );
+    expect(keyNoteManager.createOrGetKeyNote).toHaveBeenCalledWith('CustomTerm');
+    expect(relationManager.addKeyNoteToGroup).toHaveBeenCalledWith(keyNote.id, group.id);
+    expect(editKeyNote).toHaveBeenCalledWith(keyNote.id);
   });
 
   it('removes only the current group relation from a key-note tree item', async () => {
@@ -1546,19 +1594,18 @@ describe('extension key-note tree preview wiring', () => {
 });
 
 describe('extension key-note selection reveal wiring', () => {
-  it('reveals an existing selected key note in the tree and opens the panel in view mode without stealing focus', async () => {
+  it('reveals an existing selected key note in the tree when auto-follow event is fired', async () => {
     const reveal = vi.fn().mockResolvedValue(undefined);
-    const previewKeyNote = vi.fn();
-    const getSelectedKeyNote = vi.fn().mockReturnValue(makeNote('note-1', { term: 'User Table' }));
     const getRevealItemForNoteId = vi.fn().mockReturnValue({
       type: 'key-note',
       dataId: 'note-1',
       groupId: 'group-1',
       label: 'User Table',
     });
-    let selectionListener: ((event: { textEditor: unknown }) => void) | undefined;
-    mockState.window.onDidChangeTextEditorSelection.mockImplementation((listener: (event: { textEditor: unknown }) => void) => {
-      selectionListener = listener;
+    
+    let listener: ((noteId: string) => Promise<void>) | undefined;
+    const onDidAutoFollowNote = vi.fn((cb: (noteId: string) => Promise<void>) => {
+      listener = cb;
       return { dispose: vi.fn() };
     });
 
@@ -1571,20 +1618,15 @@ describe('extension key-note selection reveal wiring', () => {
       {
         getRevealItemForNoteId,
       } as unknown as Pick<KeyNoteTreeProvider, 'getRevealItemForNoteId'>,
-      asPreviewService({ getSelectedKeyNote }),
-      asSidebarPreviewProvider({ previewKeyNote })
+      { onDidAutoFollowNote } as unknown as Pick<KeyNoteSidebarPreviewProvider, 'onDidAutoFollowNote'>
     );
 
-    const textEditor = { id: 'editor-1' };
-    selectionListener?.({ textEditor });
-    await Promise.resolve();
+    await listener?.('note-1');
 
-    expect(getSelectedKeyNote).toHaveBeenCalledWith(textEditor);
     expect(getRevealItemForNoteId).toHaveBeenCalledWith('note-1');
     expect(reveal).toHaveBeenCalledWith(
       expect.objectContaining({ dataId: 'note-1' }),
       { expand: true, select: true, focus: false }
     );
-    expect(previewKeyNote).toHaveBeenCalledWith('note-1');
   });
 });

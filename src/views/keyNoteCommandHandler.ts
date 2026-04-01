@@ -41,7 +41,8 @@ export class KeyNoteCommandHandler {
             vscode.commands.registerCommand('groupBookmarks.setActiveKeyNoteGroup', (item: KeyNoteTreeItemContext) => this.setActiveKeyNoteGroup(item)),
             vscode.commands.registerCommand('groupBookmarks.removeKeyNoteFromGroup', (item: KeyNoteTreeItemContext) => this.removeKeyNoteFromGroup(item)),
             vscode.commands.registerCommand('groupBookmarks.deleteKeyNote', (item: KeyNoteTreeItemContext) => this.deleteKeyNote(item)),
-            vscode.commands.registerCommand('groupBookmarks.addExistingKeyNoteToGroup', (item: KeyNoteTreeItemContext) => this.addExistingKeyNoteToGroup(item))
+            vscode.commands.registerCommand('groupBookmarks.addExistingKeyNoteToGroup', (item: KeyNoteTreeItemContext) => this.addExistingKeyNoteToGroup(item)),
+            vscode.commands.registerCommand('groupBookmarks.addKeyNoteToGroup', (item: KeyNoteTreeItemContext) => this.addKeyNoteToGroup(item))
         );
     }
 
@@ -278,6 +279,50 @@ export class KeyNoteCommandHandler {
         } catch (error) {
             vscode.window.showErrorMessage(
                 `Failed to add existing key note to group: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
+        }
+    }
+
+    async addKeyNoteToGroup(item?: KeyNoteTreeItemContext): Promise<void> {
+        let targetGroupId = item?.dataId;
+        
+        // 如果没有传入 item（比如通过命令面板调取），尝试让用户选一个组
+        if (!targetGroupId) {
+            targetGroupId = await this.resolveTargetGroupId();
+        }
+
+        if (!targetGroupId) {
+            return;
+        }
+
+        const inputTerm = await vscode.window.showInputBox({
+            prompt: 'Enter term/word for the new Key Note',
+            placeHolder: 'e.g. UserData'
+        });
+
+        if (!inputTerm || !inputTerm.trim()) {
+            return;
+        }
+
+        const term = extractNormalizedTerm(inputTerm) ? inputTerm.trim() : undefined;
+        if (!term) {
+            vscode.window.showWarningMessage('Please enter a valid key note term');
+            return;
+        }
+
+        try {
+            const note = await this.keyNoteManager.createOrGetKeyNote(term);
+            await this.keyNoteRelationManager.addKeyNoteToGroup(note.id, targetGroupId);
+
+            if (this.keyNoteSidebarEditor) {
+                this.keyNoteSidebarEditor.editKeyNote(note.id);
+                return;
+            }
+
+            await this.keyNoteDocumentService.openNoteDocument(note.id);
+        } catch (error) {
+            vscode.window.showErrorMessage(
+                `Failed to add key note to group: ${error instanceof Error ? error.message : 'Unknown error'}`
             );
         }
     }
