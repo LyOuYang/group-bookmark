@@ -65,4 +65,10 @@ export class KeyNoteManager {
     getByNormalizedTerm(normalizedTerm: string): KeyNote | undefined {
         return this.dataManager.getAllKeyNotes().find(note => note.normalizedTerm === normalizedTerm);
     }
+    /**
+     * 获取所有词条笔记
+     */
+    getAllKeyNotes(): KeyNote[] {
+        return this.dataManager.getAllKeyNotes();
+    }
 }

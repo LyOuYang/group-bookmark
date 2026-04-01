@@ -42,7 +42,9 @@ export class KeyNoteCommandHandler {
             vscode.commands.registerCommand('groupBookmarks.removeKeyNoteFromGroup', (item: KeyNoteTreeItemContext) => this.removeKeyNoteFromGroup(item)),
             vscode.commands.registerCommand('groupBookmarks.deleteKeyNote', (item: KeyNoteTreeItemContext) => this.deleteKeyNote(item)),
             vscode.commands.registerCommand('groupBookmarks.addExistingKeyNoteToGroup', (item: KeyNoteTreeItemContext) => this.addExistingKeyNoteToGroup(item)),
-            vscode.commands.registerCommand('groupBookmarks.addKeyNoteToGroup', (item: KeyNoteTreeItemContext) => this.addKeyNoteToGroup(item))
+            vscode.commands.registerCommand('groupBookmarks.addKeyNoteToGroup', (item: KeyNoteTreeItemContext) => this.addKeyNoteToGroup(item)),
+            vscode.commands.registerCommand('groupBookmarks.toggleKeyNoteGroupSortMode', (item: KeyNoteTreeItemContext) => this.toggleKeyNoteGroupSortMode(item)),
+            vscode.commands.registerCommand('groupBookmarks.searchKeyNotes', () => this.searchKeyNotes())
         );
     }
 
@@ -383,5 +385,57 @@ export class KeyNoteCommandHandler {
         const group = await this.keyNoteGroupManager.createGroup(groupName.trim());
         await this.keyNoteGroupManager.setActiveKeyNoteGroupId(group.id);
         return group.id;
+    }
+
+    async toggleKeyNoteGroupSortMode(item: KeyNoteTreeItemContext): Promise<void> {
+        if (!item?.dataId) {
+            vscode.window.showErrorMessage('Invalid key-note group');
+            return;
+        }
+
+        const group = this.keyNoteGroupManager.getGroupById(item.dataId);
+        if (!group) {
+            return;
+        }
+
+        const currentMode = group.sortMode || 'custom';
+        const options: Array<{ label: string; mode: 'custom' | 'name_asc' | 'name_desc'; iconPath?: vscode.ThemeIcon }> = [
+            { label: 'Custom (Drag & Drop)', mode: 'custom', iconPath: currentMode === 'custom' ? new vscode.ThemeIcon('check') : undefined },
+            { label: 'Name (A-Z)', mode: 'name_asc', iconPath: currentMode === 'name_asc' ? new vscode.ThemeIcon('check') : undefined },
+            { label: 'Name (Z-A)', mode: 'name_desc', iconPath: currentMode === 'name_desc' ? new vscode.ThemeIcon('check') : undefined }
+        ];
+
+        const selected = await vscode.window.showQuickPick(options, { placeHolder: 'Select Sort Mode' });
+        if (selected && selected.mode !== currentMode) {
+            try {
+                await this.keyNoteGroupManager.updateGroupSortMode(group.id, selected.mode);
+            } catch (error) {
+                vscode.window.showErrorMessage(
+                    `Failed to toggle group sort mode: ${error instanceof Error ? error.message : 'Unknown error'}`
+                );
+            }
+        }
+    }
+
+    async searchKeyNotes(): Promise<void> {
+        const notes = this.keyNoteManager.getAllKeyNotes();
+        const items = notes.map(note => {
+            const groups = this.keyNoteRelationManager.getGroupsForKeyNote(note.id);
+            const groupNames = groups.map(g => g.displayName).join(', ');
+            return {
+                label: `$(note) ${note.term}`,
+                description: groupNames,
+                noteId: note.id
+            };
+        });
+
+        const selected = await vscode.window.showQuickPick(items, {
+            placeHolder: 'Search all key notes...',
+            matchOnDescription: true
+        });
+
+        if (selected) {
+            await this.openKeyNote({ dataId: selected.noteId });
+        }
     }
 }

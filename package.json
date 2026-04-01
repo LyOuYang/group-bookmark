@@ -185,6 +185,12 @@
         "icon": "$(edit)"
       },
       {
+        "command": "groupBookmarks.toggleKeyNoteGroupSortMode",
+        "title": "Toggle Sort Mode",
+        "category": "Group Bookmarks",
+        "icon": "$(sort-precedence)"
+      },
+      {
         "command": "groupBookmarks.deleteKeyNoteGroup",
         "title": "Delete Group",
         "category": "Group Bookmarks",
@@ -219,6 +225,12 @@
         "title": "Add Note",
         "category": "Group Bookmarks",
         "icon": "$(add)"
+      },
+      {
+        "command": "groupBookmarks.searchKeyNotes",
+        "title": "Search Key Notes...",
+        "category": "Group Bookmarks",
+        "icon": "$(search)"
       }
     ],
     "keybindings": [
@@ -318,7 +330,12 @@
         {
           "command": "groupBookmarks.exportKeyNotes",
           "when": "view == groupKeyNotesView",
-          "group": "navigation"
+          "group": "navigation@1"
+        },
+        {
+          "command": "groupBookmarks.searchKeyNotes",
+          "when": "view == groupKeyNotesView",
+          "group": "navigation@2"
         },
         {
           "command": "groupBookmarks.createGroup",
@@ -437,6 +454,10 @@
         },
         {
           "command": "groupBookmarks.deleteKeyNoteGroup",
+          "when": "view == groupKeyNotesView && viewItem == key-note-group"
+        },
+        {
+          "command": "groupBookmarks.toggleKeyNoteGroupSortMode",
           "when": "view == groupKeyNotesView && viewItem == key-note-group"
         }
       ]
