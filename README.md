@@ -27,15 +27,12 @@ When reading massive source code, logic often scatters across dozens of files. "
 *   **Drag & Drop**: Drag bookmarks to move them between groups, or drag groups to reorder them.
 *   **Inline Actions**: Rename, delete, or toggle visibility directly from the group header.
 
-### 4. 📝 Key Notes
-*   **Active Group Flow**: Right-click a key-note group in the Key Notes tree and set it as active. `Add Note for Selection` uses the active key-note group automatically, and if none is active it will prompt you to select or create one.
-*   **Group Controls**: Key Notes group rows now support active, rename, and delete actions in the same way as bookmark groups.
-*   **Tree + Editor**: The Key Notes tree stays on the left, and the Note Editor stays in the panel area. Click a tree item to load it into the editor for preview, then continue editing from the panel when needed.
-*   **Row Actions**: Note rows expose quick actions for common management tasks. Destructive actions, including delete, ask for confirmation.
-*   **Unified Marking**: Editor context-menu entries for bookmarks and key notes now use the same marking style.
-*   **Add Note**: Select text in the editor and run `Add Note for Selection` to create or open a key note.
-*   **Manage Membership**: In the Key Notes view, right-click a note to set a group active, remove it from the current group, add it to another group, or delete it everywhere.
-*   **Selection Sync**: Selecting a matching term reveals the note in the tree and loads the Note Editor in view mode, without opening a floating hover preview.
+### 4. 📝 Key Notes (New Major Feature since 1.0.9)
+Beyond tracking code lines, understanding a complex codebase requires keeping track of domain-specific terminology, architectural concepts, and APIs. Version 2.0+ introduces a built-in knowledge base!
+*   **Integrated Glossary**: Build a glossary of terms directly within your IDE. Select any term in the editor, and use `Add Note for Selection` to write rich Markdown notes describing it.
+*   **Dedicated Webview Editor**: A rich Key Note Editor panel stays alongside your code. It renders your markdown seamlessly without forcing you to juggle raw `.md` files or breaking your flow.
+*   **Search & Auto-Sync**: Globally search your key notes (`Search Key Notes...`). When you select a known term in your code, the extension automatically loads its documentation in the Key Note Editor.
+*   **Powerful Group Management**: Just like bookmarks, you can organize your Key Notes into colored groups (e.g., "Database Models", "Protocols"). Support custom Drag&Drop ordering, sorting (A-Z, Z-A) via group context menu, and active group pinning!
 
 ### 5. 🔄 Import/Export
 *   Export all groups and bookmarks to a JSON file for sharing with colleagues or syncing between devices.
@@ -100,15 +97,12 @@ When reading massive source code, logic often scatters across dozens of files. "
 *   **Drag & Drop**: 支持拖拽书签在分组间移动，或拖拽改变分组排序。
 *   **Inline Actions**: 在分组标题栏即可快速完成重命名、删除、切换可见性等操作。
 
-### 4. 📝 术语笔记
-*   **激活分组**：在 Key Notes 树中右键术语分组即可设为当前激活分组。`Add Note for Selection` 会优先使用当前激活分组；如果没有激活分组，系统会提示你选择或创建一个分组。
-*   **分组操作**：Key Notes 分组行现在支持激活、重命名和删除，和书签分组保持一致。
-*   **树与编辑器**：Key Notes 树保留在左侧，Note Editor 保留在面板区域中。单击树项即可在编辑器中加载该笔记进行预览；需要时再从面板继续编辑。
-*   **行内操作**：笔记行提供常用快捷操作。删除等破坏性操作会在执行前要求确认。
-*   **统一标记**：编辑器右键菜单中，书签和术语笔记使用统一的标记样式。
-*   **添加笔记**：在编辑器中选中一段文本后运行 `Add Note for Selection`，即可在当前术语分组中创建或打开对应笔记。
-*   **管理归属**：在 Key Notes 视图中，右键笔记即可将其从当前分组移除、加入其他分组，或直接删除全部关联。
-*   **选区联动**：当选中的术语与已有笔记匹配时，系统会在树中定位该笔记，并在 Note Editor 中以查看模式加载，不再自动弹出浮窗预览。
+### 4. 📝 术语笔记 (Key Notes - 对比 1.0.9 的重大理念升级)
+在阅读复杂源码时，除了用“代码书签”记录执行流程外，我们不可避免地会遇到大量陌生的领域专有词汇、架构概念或外部 API。在 1.0.9 及以前，插件仅支持简单的代码行标记；现在，我们引入了完整的**内置代码知识库**！
+*   **专属代码词典**: 在编辑器中选中任何陌生词汇，右键 `🔖 Add Key Note`，即可就地编写带有 Markdown 格式的术语解析。
+*   **沉浸式 Webview 编辑器**: 笔记会在专属的 **Key Note Editor** 面板中打开并渲染，而不是让您去面对零散的物理 `.md` 文件，完美保证了您的沉浸式阅读心流。
+*   **全局搜索与选区联动**: 支持全局搜索术语 (`Search Key Notes...`) 并直接在专属面板展示。当在源码中选中一个已被记录的术语时，系统会自动在面板中提取并展示它的解释！
+*   **完善的分组与排序**: 与书签功能一样，您可以对术语进行多维分组（如“模型定义”、“通信协议”），并支持在分组右键菜单中直接点选排序方式（自定义拖拽、A-Z、Z-A）。
 
 ### 5. 🔄 导入/导出
 *   支持将所有分组和书签导出为 JSON 文件，便于分享给同事或在不同设备间同步上下文。
