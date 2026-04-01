@@ -18,7 +18,9 @@ export class KeyNoteTreeItem extends vscode.TreeItem {
     }
 }
 
-export class KeyNoteTreeProvider implements vscode.TreeDataProvider<KeyNoteTreeItem> {
+export class KeyNoteTreeProvider implements vscode.TreeDataProvider<KeyNoteTreeItem>, vscode.TreeDragAndDropController<KeyNoteTreeItem> {
+    public readonly dragMimeTypes = ['application/vnd.code.tree.keynotes'];
+    public readonly dropMimeTypes = ['application/vnd.code.tree.keynotes'];
     private readonly _onDidChangeTreeData = new vscode.EventEmitter<KeyNoteTreeItem | undefined | null | void>();
     readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
@@ -135,5 +137,66 @@ export class KeyNoteTreeProvider implements vscode.TreeDataProvider<KeyNoteTreeI
             label,
             vscode.TreeItemCollapsibleState.None
         );
+    }
+
+    public async handleDrag(source: readonly KeyNoteTreeItem[], dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<void> {
+        if (source.length === 0 || source[0].type !== 'key-note') {
+            return;
+        }
+        dataTransfer.set('application/vnd.code.tree.keynotes', new vscode.DataTransferItem(source));
+    }
+
+    public async handleDrop(target: KeyNoteTreeItem | undefined, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<void> {
+        const transferItem = dataTransfer.get('application/vnd.code.tree.keynotes');
+        if (!transferItem) {
+            return;
+        }
+
+        const sourceItems = transferItem.value as KeyNoteTreeItem[];
+        if (sourceItems.length !== 1 || !target) {
+            return;
+        }
+
+        const sourceItem = sourceItems[0];
+        if (sourceItem.type !== 'key-note' || !sourceItem.groupId) {
+            return;
+        }
+
+        const noteId = sourceItem.dataId;
+
+        if (target.type === 'key-note-group') {
+            const targetGroupId = target.dataId;
+            if (sourceItem.groupId !== targetGroupId) {
+                await this.keyNoteRelationManager.removeKeyNoteFromGroup(noteId, sourceItem.groupId);
+                await this.keyNoteRelationManager.addKeyNoteToGroup(noteId, targetGroupId);
+            }
+        } else if (target.type === 'key-note') {
+            const targetGroupId = target.groupId;
+            if (!targetGroupId || sourceItem.groupId !== targetGroupId) {
+                return;
+            }
+
+            const group = this.keyNoteGroupManager.getGroupById(targetGroupId);
+            if (group && group.sortMode && group.sortMode !== 'custom') {
+                vscode.window.showWarningMessage('Cannot reorder notes when non-custom sort mode is active. Toggle sort mode first.');
+                return;
+            }
+
+            const relations = this.keyNoteRelationManager.getRelationsInGroup(targetGroupId);
+            const sourceRel = relations.find(r => r.keyNoteId === noteId);
+            const targetRel = relations.find(r => r.keyNoteId === target.dataId);
+            if (!sourceRel || !targetRel) {
+                return;
+            }
+
+            const existingIds = relations.map(r => r.id);
+            const newIds = existingIds.filter(id => id !== sourceRel.id);
+            const targetIndex = newIds.indexOf(targetRel.id);
+            // Insert before target
+            newIds.splice(targetIndex, 0, sourceRel.id);
+
+            // We need to implement reorderKeyNoteRelationsInGroup in keyNoteRelationManager? Actually we don't have it on relationManager, it's on dataManager!
+            await this.dataManager.reorderKeyNoteRelationsInGroup(targetGroupId, newIds);
+        }
     }
 }

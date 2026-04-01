@@ -43,7 +43,9 @@ export class KeyNoteCommandHandler {
             vscode.commands.registerCommand('groupBookmarks.deleteKeyNote', (item: KeyNoteTreeItemContext) => this.deleteKeyNote(item)),
             vscode.commands.registerCommand('groupBookmarks.addExistingKeyNoteToGroup', (item: KeyNoteTreeItemContext) => this.addExistingKeyNoteToGroup(item)),
             vscode.commands.registerCommand('groupBookmarks.addKeyNoteToGroup', (item: KeyNoteTreeItemContext) => this.addKeyNoteToGroup(item)),
-            vscode.commands.registerCommand('groupBookmarks.toggleKeyNoteGroupSortMode', (item: KeyNoteTreeItemContext) => this.toggleKeyNoteGroupSortMode(item)),
+            vscode.commands.registerCommand('groupBookmarks.sortGroupCustom', (item: KeyNoteTreeItemContext) => this.setGroupSortMode(item, 'custom')),
+            vscode.commands.registerCommand('groupBookmarks.sortGroupAsc', (item: KeyNoteTreeItemContext) => this.setGroupSortMode(item, 'name_asc')),
+            vscode.commands.registerCommand('groupBookmarks.sortGroupDesc', (item: KeyNoteTreeItemContext) => this.setGroupSortMode(item, 'name_desc')),
             vscode.commands.registerCommand('groupBookmarks.searchKeyNotes', () => this.searchKeyNotes())
         );
     }
@@ -124,7 +126,11 @@ export class KeyNoteCommandHandler {
         }
 
         try {
-            await this.keyNoteDocumentService.openNoteDocument(item.dataId);
+            if (this.keyNoteSidebarEditor) {
+                this.keyNoteSidebarEditor.editKeyNote(item.dataId);
+            } else {
+                await this.keyNoteDocumentService.openNoteDocument(item.dataId);
+            }
         } catch (error) {
             vscode.window.showErrorMessage(
                 `Failed to open key note: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -387,7 +393,7 @@ export class KeyNoteCommandHandler {
         return group.id;
     }
 
-    async toggleKeyNoteGroupSortMode(item: KeyNoteTreeItemContext): Promise<void> {
+    async setGroupSortMode(item: KeyNoteTreeItemContext, mode: 'custom' | 'name_asc' | 'name_desc'): Promise<void> {
         if (!item?.dataId) {
             vscode.window.showErrorMessage('Invalid key-note group');
             return;
@@ -399,19 +405,12 @@ export class KeyNoteCommandHandler {
         }
 
         const currentMode = group.sortMode || 'custom';
-        const options: Array<{ label: string; mode: 'custom' | 'name_asc' | 'name_desc'; iconPath?: vscode.ThemeIcon }> = [
-            { label: 'Custom (Drag & Drop)', mode: 'custom', iconPath: currentMode === 'custom' ? new vscode.ThemeIcon('check') : undefined },
-            { label: 'Name (A-Z)', mode: 'name_asc', iconPath: currentMode === 'name_asc' ? new vscode.ThemeIcon('check') : undefined },
-            { label: 'Name (Z-A)', mode: 'name_desc', iconPath: currentMode === 'name_desc' ? new vscode.ThemeIcon('check') : undefined }
-        ];
-
-        const selected = await vscode.window.showQuickPick(options, { placeHolder: 'Select Sort Mode' });
-        if (selected && selected.mode !== currentMode) {
+        if (mode !== currentMode) {
             try {
-                await this.keyNoteGroupManager.updateGroupSortMode(group.id, selected.mode);
+                await this.keyNoteGroupManager.updateGroupSortMode(group.id, mode);
             } catch (error) {
                 vscode.window.showErrorMessage(
-                    `Failed to toggle group sort mode: ${error instanceof Error ? error.message : 'Unknown error'}`
+                    `Failed to set group sort mode: ${error instanceof Error ? error.message : 'Unknown error'}`
                 );
             }
         }

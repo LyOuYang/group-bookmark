@@ -393,14 +393,22 @@ describe('KeyNoteCommandHandler', () => {
       expect.any(Function)
     );
     expect(mockState.commands.registerCommand).toHaveBeenCalledWith(
-      'groupBookmarks.toggleKeyNoteGroupSortMode',
+      'groupBookmarks.sortGroupCustom',
+      expect.any(Function)
+    );
+    expect(mockState.commands.registerCommand).toHaveBeenCalledWith(
+      'groupBookmarks.sortGroupAsc',
+      expect.any(Function)
+    );
+    expect(mockState.commands.registerCommand).toHaveBeenCalledWith(
+      'groupBookmarks.sortGroupDesc',
       expect.any(Function)
     );
     expect(mockState.commands.registerCommand).toHaveBeenCalledWith(
       'groupBookmarks.searchKeyNotes',
       expect.any(Function)
     );
-    expect(context.subscriptions).toHaveLength(12);
+    expect(context.subscriptions).toHaveLength(14);
   });
 
   it('opens the custom key-note document after creating or finding the note when no panel editor is available', async () => {

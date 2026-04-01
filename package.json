@@ -185,10 +185,19 @@
         "icon": "$(edit)"
       },
       {
-        "command": "groupBookmarks.toggleKeyNoteGroupSortMode",
-        "title": "Toggle Sort Mode",
-        "category": "Group Bookmarks",
-        "icon": "$(sort-precedence)"
+        "command": "groupBookmarks.sortGroupCustom",
+        "title": "Custom (Drag & Drop)",
+        "category": "Group Bookmarks"
+      },
+      {
+        "command": "groupBookmarks.sortGroupAsc",
+        "title": "Name (A-Z)",
+        "category": "Group Bookmarks"
+      },
+      {
+        "command": "groupBookmarks.sortGroupDesc",
+        "title": "Name (Z-A)",
+        "category": "Group Bookmarks"
       },
       {
         "command": "groupBookmarks.deleteKeyNoteGroup",
@@ -290,6 +299,12 @@
         }
       ]
     },
+    "submenus": [
+      {
+        "id": "groupBookmarks.sortSubmenu",
+        "label": "Sort By..."
+      }
+    ],
     "menus": {
       "editor/context": [
         {
@@ -457,8 +472,23 @@
           "when": "view == groupKeyNotesView && viewItem == key-note-group"
         },
         {
-          "command": "groupBookmarks.toggleKeyNoteGroupSortMode",
-          "when": "view == groupKeyNotesView && viewItem == key-note-group"
+          "submenu": "groupBookmarks.sortSubmenu",
+          "when": "view == groupKeyNotesView && viewItem == key-note-group",
+          "group": "2_manage@4"
+        }
+      ],
+      "groupBookmarks.sortSubmenu": [
+        {
+          "command": "groupBookmarks.sortGroupCustom",
+          "when": "viewItem == key-note-group"
+        },
+        {
+          "command": "groupBookmarks.sortGroupAsc",
+          "when": "viewItem == key-note-group"
+        },
+        {
+          "command": "groupBookmarks.sortGroupDesc",
+          "when": "viewItem == key-note-group"
         }
       ]
     }
