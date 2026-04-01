@@ -307,9 +307,6 @@ function asDataManager(mock: unknown): DataManager {
   return mock as unknown as DataManager;
 }
 
-function asPreviewService(mock: unknown): KeyNotePreviewService {
-  return mock as unknown as KeyNotePreviewService;
-}
 
 function asSidebarPreviewProvider(mock: unknown): KeyNoteSidebarPreviewProvider {
   return mock as unknown as KeyNoteSidebarPreviewProvider;
@@ -408,7 +405,7 @@ describe('KeyNoteCommandHandler', () => {
       'groupBookmarks.searchKeyNotes',
       expect.any(Function)
     );
-    expect(context.subscriptions).toHaveLength(14);
+    expect(context.subscriptions).toHaveLength(18);
   });
 
   it('opens the custom key-note document after creating or finding the note when no panel editor is available', async () => {

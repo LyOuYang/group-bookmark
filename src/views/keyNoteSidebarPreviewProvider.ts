@@ -314,11 +314,11 @@ export class KeyNoteSidebarPreviewProvider implements vscode.WebviewViewProvider
 
         this.selectionTimeout = setTimeout(() => {
             // Re-validate view states
-            if (!this.webviewView || !this.webviewView.visible || this.isDirty) return;
+            if (!this.webviewView || !this.webviewView.visible || this.isDirty) {return;}
 
-            if (event.selections.length !== 1) return;
+            if (event.selections.length !== 1) {return;}
             const selection = event.selections[0];
-            if (selection.isEmpty || !selection.isSingleLine) return;
+            if (selection.isEmpty || !selection.isSingleLine) {return;}
             
             const text = event.textEditor.document.getText(selection).trim();
             if (text.length < 2 || text.length > 64 || /\\s/.test(text)) {
@@ -331,7 +331,7 @@ export class KeyNoteSidebarPreviewProvider implements vscode.WebviewViewProvider
 
     private async handleAutoFollowWord(word: string): Promise<void> {
         const normalized = extractNormalizedTerm(word);
-        if (!normalized) return;
+        if (!normalized) {return;}
 
         const existingNote = this.keyNoteManager.getByNormalizedTerm(normalized);
         if (existingNote) {
@@ -428,7 +428,7 @@ export class KeyNoteSidebarPreviewProvider implements vscode.WebviewViewProvider
                 this.draftTerm = undefined;
             }
 
-            if (!noteId) return;
+            if (!noteId) {return;}
 
             await this.updateKeyNoteContent(noteId, typedMessage.content);
             if (typedMessage.groupId) {

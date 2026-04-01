@@ -21,8 +21,8 @@ export class ImportExportService {
         try {
             // 弹出保存对话框
             let exportName = 'group-bookmarks-export.json';
-            if (scope === 'bookmarks') exportName = 'group-bookmarks-only.json';
-            if (scope === 'keyNotes') exportName = 'group-key-notes-only.json';
+            if (scope === 'bookmarks') {exportName = 'group-bookmarks-only.json';}
+            if (scope === 'keyNotes') {exportName = 'group-key-notes-only.json';}
 
             const uri = await vscode.window.showSaveDialog({
                 defaultUri: vscode.Uri.file(exportName),
@@ -87,7 +87,7 @@ export class ImportExportService {
 
             if (action.value === 'replace') {
                 // 替换模式下，如果 scope 指定只覆盖部分，我们需要构建一个混合 Data
-                let dataToImport = { ...data };
+                const dataToImport = { ...data };
                 if (scope === 'bookmarks') {
                     delete dataToImport.keyNotes;
                     delete dataToImport.keyNoteGroups;

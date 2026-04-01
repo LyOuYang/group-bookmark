@@ -5,11 +5,6 @@ All notable changes to the **Group Bookmarks** extension will be documented in t
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.6] - 2026-03-31
-
-### Changed
-- Updated the docs for key-note interaction parity: group rows now match bookmark-style active, rename, and delete controls; note rows expose quick actions with confirmation for destructive changes; and editor context-menu marking is unified across bookmarks and key notes.
-
 ## [2.0.0] - 2026-03-31
 
 ### Added
@@ -22,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Refined key-note selection behavior: matching terms now sync the tree and load the Note Editor in view mode by default, without triggering the automatic hover preview.
+- Updated the docs for key-note interaction parity: group rows now match bookmark-style active, rename, and delete controls; note rows expose quick actions with confirmation for destructive changes; and editor context-menu marking is unified across bookmarks and key notes.
 
 ## [1.0.5] - 2026-02-05
 

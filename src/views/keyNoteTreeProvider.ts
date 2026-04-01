@@ -139,14 +139,14 @@ export class KeyNoteTreeProvider implements vscode.TreeDataProvider<KeyNoteTreeI
         );
     }
 
-    public async handleDrag(source: readonly KeyNoteTreeItem[], dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<void> {
+    public async handleDrag(source: readonly KeyNoteTreeItem[], dataTransfer: vscode.DataTransfer): Promise<void> {
         if (source.length === 0 || source[0].type !== 'key-note') {
             return;
         }
         dataTransfer.set('application/vnd.code.tree.keynotes', new vscode.DataTransferItem(source));
     }
 
-    public async handleDrop(target: KeyNoteTreeItem | undefined, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<void> {
+    public async handleDrop(target: KeyNoteTreeItem | undefined, dataTransfer: vscode.DataTransfer): Promise<void> {
         const transferItem = dataTransfer.get('application/vnd.code.tree.keynotes');
         if (!transferItem) {
             return;
