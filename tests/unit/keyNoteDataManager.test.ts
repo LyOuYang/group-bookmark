@@ -380,6 +380,21 @@ describe('key note data manager', () => {
     expect(groupManager.getAllGroups()).toHaveLength(0);
   });
 
+  it('updates the sort mode of a key-note group', async () => {
+    const storage = createStorageDouble();
+    const dataManager = new DataManager(asStorageService(storage));
+    const groupManager = new KeyNoteGroupManager(dataManager);
+
+    const group = await groupManager.createGroup('User Notes');
+    // Default should be treated as falsy or custom
+    expect(group.sortMode).toBeUndefined();
+
+    await groupManager.updateGroupSortMode(group.id, 'name_asc');
+    
+    expect(groupManager.getGroupById(group.id)?.sortMode).toBe('name_asc');
+    expect(storage.saveKeyNoteGroups).toHaveBeenCalled();
+  });
+
   it('clears the active key-note group state when deleting the active group', async () => {
     const storage = createStorageDouble();
     const dataManager = new DataManager(asStorageService(storage));

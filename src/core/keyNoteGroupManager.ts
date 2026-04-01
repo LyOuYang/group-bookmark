@@ -107,4 +107,16 @@ export class KeyNoteGroupManager {
 
         await this.dataManager.setActiveKeyNoteGroupId(id);
     }
+
+    /**
+     * 更新分组的排序模式
+     */
+    async updateGroupSortMode(groupId: string, sortMode: 'custom' | 'name_asc' | 'name_desc'): Promise<void> {
+        const group = this.getGroupById(groupId);
+        if (!group) {
+            throw new Error(`Key note group ${groupId} not found`);
+        }
+
+        await this.dataManager.updateKeyNoteGroup(groupId, { sortMode });
+    }
 }

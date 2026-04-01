@@ -61,6 +61,7 @@ export interface KeyNoteGroup {
     number: number;
     color: GroupColor;
     order: number;
+    sortMode?: 'custom' | 'name_asc' | 'name_desc';
     createdAt: number;
     updatedAt: number;
 }
