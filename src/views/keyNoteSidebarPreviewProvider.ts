@@ -518,107 +518,150 @@ export class KeyNoteSidebarPreviewProvider implements vscode.WebviewViewProvider
     <style>
         :root { color-scheme: light dark; }
         html, body { height: 100%; margin: 0; }
-        body { font-family: var(--vscode-font-family); color: var(--vscode-foreground); background: var(--vscode-sideBar-background); }
-        .shell { box-sizing: border-box; min-height: 100%; padding: 16px 12px; display: flex; flex-direction: column; gap: 12px; }
+        body { font-family: var(--vscode-font-family); color: var(--vscode-foreground); background: var(--vscode-sideBar-background); display: flex; flex-direction: column; overflow: hidden; }
+        
+        /* The main shell should flex fully to occupy space */
+        .shell { box-sizing: border-box; flex: 1; display: flex; flex-direction: column; gap: 8px; padding: 12px; min-height: 0; }
         .shell.animating { animation: fadeIn 0.15s ease-out; }
         @keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
-        .header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+
+        /* HEADER: Keep very compact */
+        .header { display: flex; justify-content: space-between; align-items: center; gap: 6px; flex-shrink: 0; }
+        .hero-title-container { flex: 1; min-width: 0; display: flex; align-items: center; }
         .hero-title {
-            margin: 0; font-size: 16px; font-weight: 700;
+            margin: 0; font-size: 14px; font-weight: 600;
             font-family: var(--vscode-editor-font-family);
             background: color-mix(in srgb, var(--vscode-editorAction-activeBackground) 15%, transparent);
             color: var(--vscode-textLink-foreground);
-            padding: 4px 8px; border-radius: 4px; word-break: break-all;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.1); flex: 1; min-width: 0;
+            padding: 3px 8px; border-radius: 4px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
         }
+        .header-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+        
+        .icon-btn { 
+            background: transparent; border: 1px solid transparent; color: var(--vscode-icon-foreground); 
+            padding: 4px 6px; border-radius: 4px; cursor: pointer; font-size: 13px; line-height: 1;
+        }
+        .icon-btn:hover { color: var(--vscode-foreground); background: var(--vscode-toolbar-hoverBackground); }
         .auto-follow-btn {
-            flex-shrink: 0;
-            border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 80%, transparent);
-            background: var(--vscode-button-secondaryBackground, transparent);
-            color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
-            border-radius: 6px; padding: 2px 6px; font-size: 10px;
-            opacity: 0.85; cursor: pointer; white-space: nowrap;
+            font-size: 11px; padding: 2px 6px; border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 80%, transparent);
+            background: var(--vscode-button-secondaryBackground, transparent); color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+            border-radius: 4px; opacity: 0.85; cursor: pointer; white-space: nowrap;
         }
         .auto-follow-btn:hover { opacity: 1; }
-        .groups { display: flex; flex-wrap: wrap; gap: 6px; }
-        .badge { padding: 2px 8px; border-radius: 999px; background: var(--vscode-badge-background); color: var(--vscode-badge-foreground); font-size: 11px; line-height: 18px; }
-        .preview-layout { padding-top: 4px; }
-        .preview-actions { display: flex; justify-content: flex-end; margin-bottom: 8px; }
-        .icon-btn { background: transparent; border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 40%, transparent); color: var(--vscode-descriptionForeground); padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; transition: all 0.2s; }
-        .icon-btn:hover { color: var(--vscode-foreground); background: var(--vscode-toolbar-hoverBackground); }
-        .edit-layout { display: flex; flex-direction: column; gap: 12px; flex-grow: 1; }
-        .waterfall-select { width: 100%; padding: 8px; font-size: 13px; border-radius: 4px; border: 1px solid var(--vscode-dropdown-border); background: var(--vscode-dropdown-background); color: var(--vscode-dropdown-foreground); outline: none; cursor: pointer; box-sizing: border-box; }
-        .waterfall-editor { width: 100%; min-height: 220px; padding: 12px; resize: vertical; border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 80%, transparent); border-left: 3px solid transparent; border-radius: 6px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); font-family: var(--vscode-editor-font-family, var(--vscode-font-family)); font-size: 13px; line-height: 1.6; transition: border-color 0.15s; box-sizing: border-box; }
-        .waterfall-editor:focus { outline: none; border-color: var(--vscode-focusBorder); border-left-color: var(--vscode-focusBorder); }
-        .bottom-toolbar { display: flex; gap: 8px; margin-top: 4px; }
-        .save-btn { flex-grow: 1; font-weight: 600; padding: 8px 16px; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; border-radius: 6px; cursor: pointer; transition: opacity 0.2s; }
-        .save-btn:hover { opacity: 0.9; }
-        .cancel-btn { background: transparent; border: none; color: var(--vscode-descriptionForeground); padding: 8px 12px; cursor: pointer; border-radius: 6px; }
-        .cancel-btn:hover { color: var(--vscode-foreground); background: var(--vscode-toolbar-hoverBackground); }
-        .markdown-body { line-height: 1.6; font-size: 13px; color: var(--vscode-foreground); overflow: auto; }
+
+        .groups { display: flex; flex-wrap: wrap; gap: 4px; flex-shrink: 0; }
+        .badge { padding: 2px 6px; border-radius: 4px; background: var(--vscode-badge-background); color: var(--vscode-badge-foreground); font-size: 10px; line-height: 14px; }
+
+        /* PREVIEW MODE: Use remaining space and scroll internally */
+        .preview-layout { flex: 1; overflow-y: auto; padding-right: 4px; }
+        
+        /* EDIT MODE: Use remaining space with flex-grow */
+        .edit-layout { display: flex; flex-direction: column; gap: 6px; flex: 1; min-height: 0; }
+        .compact-toolbar { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+        .compact-select { 
+            flex: 1; min-width: 0; padding: 3px 6px; font-size: 12px; border-radius: 4px; 
+            border: 1px solid var(--vscode-dropdown-border); background: var(--vscode-dropdown-background); 
+            color: var(--vscode-dropdown-foreground); outline: none; cursor: pointer; 
+        }
+        .action-row { display: flex; gap: 4px; }
+        .compact-icon-btn { 
+            font-size: 12px; padding: 4px 8px; border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 80%, transparent); 
+            border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; 
+            background: var(--vscode-button-secondaryBackground, transparent); color: var(--vscode-button-secondaryForeground, var(--vscode-foreground)); 
+        }
+        .compact-icon-btn.primary { background: var(--vscode-button-background); color: var(--vscode-button-foreground); border-color: transparent; }
+        .compact-icon-btn:hover { filter: brightness(1.1); opacity: 0.9; }
+
+        /* Text area fills the rest */
+        .waterfall-editor { 
+            flex: 1; width: 100%; resize: none; padding: 8px; 
+            border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 80%, transparent); 
+            border-left: 3px solid transparent; border-radius: 4px; 
+            background: var(--vscode-input-background); color: var(--vscode-input-foreground); 
+            font-family: var(--vscode-editor-font-family, var(--vscode-font-family)); 
+            font-size: 13px; line-height: 1.5; outline: none; transition: border-color 0.15s; 
+            box-sizing: border-box; 
+        }
+        .waterfall-editor:focus { border-color: var(--vscode-focusBorder); border-left-color: var(--vscode-focusBorder); }
+
+        .hint-bar { font-size: 10px; color: var(--vscode-descriptionForeground); flex-shrink: 0; text-align: center; }
+        .hidden { display: none !important; }
+
+        /* MARKDOWN BODY */
+        .markdown-body { line-height: 1.6; font-size: 13px; color: var(--vscode-foreground); padding-bottom: 12px; }
         .markdown-body > :first-child { margin-top: 0; }
         .markdown-body > :last-child { margin-bottom: 0; }
-        .markdown-body h1,.markdown-body h2,.markdown-body h3,.markdown-body h4,.markdown-body h5,.markdown-body h6 { line-height: 1.3; margin: 1.1em 0 0.5em; }
-        .markdown-body h1 { font-size: 1.4em; } .markdown-body h2 { font-size: 1.25em; } .markdown-body h3 { font-size: 1.12em; }
-        .markdown-body p,.markdown-body ul,.markdown-body ol,.markdown-body blockquote,.markdown-body pre,.markdown-body table { margin: 0 0 0.9em; }
+        .markdown-body h1,.markdown-body h2,.markdown-body h3,.markdown-body h4,.markdown-body h5,.markdown-body h6 { line-height: 1.3; margin: 1em 0 0.5em; }
+        .markdown-body h1 { font-size: 1.35em; } .markdown-body h2 { font-size: 1.25em; } .markdown-body h3 { font-size: 1.1em; }
+        .markdown-body p,.markdown-body ul,.markdown-body ol,.markdown-body blockquote,.markdown-body pre,.markdown-body table { margin: 0 0 0.8em; }
         .markdown-body ul,.markdown-body ol { padding-left: 1.4em; }
         .markdown-body li + li { margin-top: 0.25em; }
         .markdown-body blockquote { margin-left: 0; padding-left: 12px; border-left: 3px solid var(--vscode-textLink-foreground); color: var(--vscode-descriptionForeground); }
         .markdown-body code { font-family: var(--vscode-editor-font-family, var(--vscode-font-family)); font-size: 0.95em; padding: 0.1em 0.35em; border-radius: 4px; background: color-mix(in srgb, var(--vscode-textCodeBlock-background) 75%, transparent); }
-        .markdown-body pre { overflow: auto; padding: 10px 12px; border-radius: 8px; background: var(--vscode-textCodeBlock-background); }
+        .markdown-body pre { overflow: auto; padding: 10px 12px; border-radius: 6px; background: var(--vscode-textCodeBlock-background); }
         .markdown-body pre code { display: block; padding: 0; background: transparent; white-space: pre; }
         .markdown-body table { width: 100%; border-collapse: collapse; }
-        .markdown-body th,.markdown-body td { padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 80%, transparent); text-align: left; vertical-align: top; }
+        .markdown-body th,.markdown-body td { padding: 6px 8px; border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 80%, transparent); text-align: left; vertical-align: top; }
         .markdown-body th { font-weight: 600; background: color-mix(in srgb, var(--vscode-editor-background) 70%, transparent); }
         .markdown-body a,.markdown-body .link-text { color: var(--vscode-textLink-foreground); text-decoration: none; }
         .muted { color: var(--vscode-descriptionForeground); }
-        .hint { font-size: 11px; color: var(--vscode-descriptionForeground); }
-        .hidden { display: none !important; }
     </style>
 </head>
 <body>
     <div class="shell" id="shell">
         <div class="header">
-            <h3 class="hero-title" id="hero-title">📝 Key Note</h3>
-            <button class="auto-follow-btn" id="auto-follow-btn" title="Toggle auto-follow">🔗 Auto Follow: ON</button>
+            <div class="hero-title-container">
+                <h3 class="hero-title" id="hero-title">📝 Key Note</h3>
+            </div>
+            <div class="header-actions">
+                <button class="icon-btn hidden" id="edit-btn" title="Edit Note">✏️</button>
+                <button class="auto-follow-btn" id="auto-follow-btn" title="Toggle auto-follow">🔗 Auto</button>
+            </div>
         </div>
         <div class="groups hidden" id="groups-container"></div>
 
         <div id="preview-section" class="preview-layout hidden">
-            <div class="preview-actions"><button class="icon-btn" id="edit-btn">✏️ Edit</button></div>
             <div class="markdown-body" id="preview-body"></div>
         </div>
 
         <div id="edit-section" class="edit-layout hidden">
-            <select id="group-select" class="waterfall-select"></select>
-            <textarea id="editor" class="waterfall-editor" spellcheck="false" placeholder="Write your note down..."></textarea>
-            <div class="bottom-toolbar">
-                <button class="save-btn" id="save-btn">✅ Save Changes (Ctrl+S)</button>
-                <button class="cancel-btn" id="cancel-btn">Cancel</button>
+            <div class="compact-toolbar">
+                <select id="group-select" class="compact-select"></select>
+                <div class="action-row">
+                    <button class="compact-icon-btn cancel-btn" id="cancel-btn" title="Cancel">❌</button>
+                    <button class="compact-icon-btn primary save-btn" id="save-btn" title="Save Changes (Ctrl+S)">✅ Save</button>
+                </div>
             </div>
+            <textarea id="editor" class="waterfall-editor" spellcheck="false" placeholder="Write your note down..."></textarea>
         </div>
 
-        <div id="empty-section" class="hidden">
+        <div id="empty-section" class="preview-layout hidden">
             <div class="markdown-body" id="empty-body"></div>
         </div>
-        <div class="hint">Use Open Note when you need the note in a standalone markdown tab.</div>
+        
+        <div class="hint-bar">Open Note for standalone markdown editing.</div>
     </div>
     <script>
         const vscode = acquireVsCodeApi();
         const shell = document.getElementById('shell');
         const heroTitle = document.getElementById('hero-title');
         const autoFollowBtn = document.getElementById('auto-follow-btn');
+        const editBtn = document.getElementById('edit-btn');
         const groupsContainer = document.getElementById('groups-container');
+        
         const previewSection = document.getElementById('preview-section');
         const previewBody = document.getElementById('preview-body');
+        
         const editSection = document.getElementById('edit-section');
         const groupSelect = document.getElementById('group-select');
         const editorEl = document.getElementById('editor');
-        const emptySection = document.getElementById('empty-section');
-        const emptyBody = document.getElementById('empty-body');
-        const editBtn = document.getElementById('edit-btn');
         const saveBtn = document.getElementById('save-btn');
         const cancelBtn = document.getElementById('cancel-btn');
+        
+        const emptySection = document.getElementById('empty-section');
+        const emptyBody = document.getElementById('empty-body');
 
         // clientDirty prevents auto-follow from switching views while user is typing
         let clientDirty = false;
@@ -641,7 +684,8 @@ export class KeyNoteSidebarPreviewProvider implements vscode.WebviewViewProvider
             prevMode = state.mode;
 
             heroTitle.textContent = state.prefixIcon + ' ' + state.title;
-            autoFollowBtn.textContent = state.isAutoFollowEnabled ? '🔗 Auto Follow: ON' : 'Auto Follow: OFF';
+            heroTitle.title = state.title;
+            autoFollowBtn.innerHTML = state.isAutoFollowEnabled ? '🔗 Auto' : '<span style="opacity:0.6">🔗 Off</span>';
 
             if (state.groups && state.groups.length > 0) {
                 groupsContainer.innerHTML = state.groups.map(g => '<span class="badge">' + escHtml(g) + '</span>').join('');
@@ -654,9 +698,11 @@ export class KeyNoteSidebarPreviewProvider implements vscode.WebviewViewProvider
             previewSection.classList.add('hidden');
             editSection.classList.add('hidden');
             emptySection.classList.add('hidden');
+            editBtn.classList.add('hidden');
 
             if (state.mode === 'preview') {
                 previewSection.classList.remove('hidden');
+                editBtn.classList.remove('hidden'); // Show edit icon in header during preview
                 previewBody.innerHTML = state.bodyHtml;
                 clientDirty = false;
             } else if (state.mode === 'edit') {
@@ -699,6 +745,7 @@ export class KeyNoteSidebarPreviewProvider implements vscode.WebviewViewProvider
         editorEl.addEventListener('input', () => {
             if (!clientDirty) { clientDirty = true; vscode.postMessage({ type: 'dirty' }); }
         });
+        
         let prevGroupValue = '';
         groupSelect.addEventListener('change', () => {
             if (groupSelect.value === '--create-new--') {
@@ -706,6 +753,7 @@ export class KeyNoteSidebarPreviewProvider implements vscode.WebviewViewProvider
                 groupSelect.value = prevGroupValue;
             } else { prevGroupValue = groupSelect.value; }
         });
+        
         function doSave() {
             if (!groupSelect.value || groupSelect.value === '--create-new--') {
                 alert('Please select a key group before saving.'); return;
@@ -715,6 +763,7 @@ export class KeyNoteSidebarPreviewProvider implements vscode.WebviewViewProvider
         }
         saveBtn.addEventListener('click', doSave);
         cancelBtn.addEventListener('click', () => { clientDirty = false; vscode.postMessage({ type: 'cancel' }); });
+        
         window.addEventListener('keydown', e => {
             if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); doSave(); }
         });
