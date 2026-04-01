@@ -29,10 +29,11 @@ When reading massive source code, logic often scatters across dozens of files. "
 
 ### 4. 📝 Key Notes (New Major Feature since 1.0.9)
 Beyond tracking code lines, understanding a complex codebase requires keeping track of domain-specific terminology, architectural concepts, and APIs. Version 2.0+ introduces a built-in knowledge base!
-*   **Integrated Glossary**: Build a glossary of terms directly within your IDE. Select any term in the editor, and use `Add Note for Selection` to write rich Markdown notes describing it.
+*   **Integrated Glossary**: Build a glossary of terms directly within your IDE. Select any term in the editor, and use `Add Note for Selection` to write rich Markdown notes describing it. Or, create notes on the fly by clicking the `+` icon on any group.
 *   **Dedicated Webview Editor**: A rich Key Note Editor panel stays alongside your code. It renders your markdown seamlessly without forcing you to juggle raw `.md` files or breaking your flow.
+*   **Smart Table Pasting**: Seamlessly paste tabular data (CSV/TSV or Excel exports) directly into the Key Note editor, and it will automatically format it as a beautiful Markdown table.
 *   **Search & Auto-Sync**: Globally search your key notes (`Search Key Notes...`). When you select a known term in your code, the extension automatically loads its documentation in the Key Note Editor.
-*   **Powerful Group Management**: Just like bookmarks, you can organize your Key Notes into colored groups (e.g., "Database Models", "Protocols"). Support custom Drag&Drop ordering, sorting (A-Z, Z-A) via group context menu, and active group pinning!
+*   **Powerful Group Management**: Organize your Key Notes into colored groups. Support custom Drag&Drop ordering, sorting (A-Z, Z-A) via group context menu, active group pinning, and reordering individual notes within a group via context menu or `Alt+Up/Down`!
 
 ### 5. 🔄 Import/Export
 *   Export all groups and bookmarks to a JSON file for sharing with colleagues or syncing between devices.
@@ -51,7 +52,7 @@ Beyond tracking code lines, understanding a complex codebase requires keeping tr
 ### 🎨 Manage Groups
 1.  **Set Active**: Click the group header to set it as **Active** (📌). New bookmarks will be added to this group automatically.
 2.  **Rename**: Right-click a group or use the edit icon to rename.
-3.  **Sort**: Drag and drop any group or bookmark to reorder.
+3.  **Move & Sort**: Drag and drop any group or bookmark to reorder. Right-click a bookmark and choose `Move to Group` to transfer it easily.
 
 ### 🔍 Browse Code
 1.  **Jump**: Click a bookmark item to jump to the code line.
@@ -99,10 +100,11 @@ Beyond tracking code lines, understanding a complex codebase requires keeping tr
 
 ### 4. 📝 术语笔记 (Key Notes - 对比 1.0.9 的重大理念升级)
 在阅读复杂源码时，除了用“代码书签”记录执行流程外，我们不可避免地会遇到大量陌生的领域专有词汇、架构概念或外部 API。在 1.0.9 及以前，插件仅支持简单的代码行标记；现在，我们引入了完整的**内置代码知识库**！
-*   **专属代码词典**: 在编辑器中选中任何陌生词汇，右键 `🔖 Add Key Note`，即可就地编写带有 Markdown 格式的术语解析。
+*   **专属代码词典**: 在编辑器中选中任何陌生词汇，右键 `🔖 Add Key Note`，即可就地编写带有 Markdown 格式的术语解析；当然，您也可以直接点击分组上的 `+` 图标随时脱稿记录脑花。
 *   **沉浸式 Webview 编辑器**: 笔记会在专属的 **Key Note Editor** 面板中打开并渲染，而不是让您去面对零散的物理 `.md` 文件，完美保证了您的沉浸式阅读心流。
+*   **智能表格转换**: 支持将 Excel、CSV 或 TSV 格式的数据片段一键粘贴到笔记编辑器中，系统会自动将其转换为规范的 Markdown 表格，极大提升协议等结构化数据的记录效率！
 *   **全局搜索与选区联动**: 支持全局搜索术语 (`Search Key Notes...`) 并直接在专属面板展示。当在源码中选中一个已被记录的术语时，系统会自动在面板中提取并展示它的解释！
-*   **完善的分组与排序**: 与书签功能一样，您可以对术语进行多维分组（如“模型定义”、“通信协议”），并支持在分组右键菜单中直接点选排序方式（自定义拖拽、A-Z、Z-A）。
+*   **完善的分组与排序**: 对术语进行多维颜色分组。除支持通过右键选择 `Sort By...`（自定义拖拽、A-Z、Z-A）等模式来对分组进行重新排序以外，分组内的词条也全面支持右键及快捷键 (`Alt+Up/Down`) 的置顶与上下排序，并可以一键切换所属分组。
 
 ### 5. 🔄 导入/导出
 *   支持将所有分组和书签导出为 JSON 文件，便于分享给同事或在不同设备间同步上下文。
@@ -121,7 +123,7 @@ Beyond tracking code lines, understanding a complex codebase requires keeping tr
 ### 🎨 管理分组
 1.  **激活分组**: 点击分组标题将其设为 **Active** (📌)，此后添加的书签会自动进入该组。
 2.  **重命名**: 右键分组或点击编辑图标，修改名称。
-3.  **排序**: 所有的分组和书签都支持鼠标拖拽排序。
+3.  **移动与编排**: 所有的分组支持鼠标拖拽排序，书签支持在同组或不同组间的转移；对于某个书签，您除了可以拖拽排序外，还可以通过右键 `Move to Group` 一键将其迁移至另一分组。
 
 ### 🔍 浏览代码
 1.  **跳转**: 点击侧边栏的书签条目，编辑器自动跳转到对应行。
