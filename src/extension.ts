@@ -113,7 +113,8 @@ export async function activate(context: vscode.ExtensionContext) {
         );
         const keyNoteTreeView = vscode.window.createTreeView('groupKeyNotesView', {
             treeDataProvider: keyNoteTreeProvider,
-            showCollapseAll: true
+            showCollapseAll: true,
+            dragAndDropController: keyNoteTreeProvider
         });
         const keyNoteSidebarPreviewProvider = new KeyNoteSidebarPreviewProvider(
             keyNoteManager,

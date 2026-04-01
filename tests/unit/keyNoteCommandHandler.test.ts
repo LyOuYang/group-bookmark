@@ -392,7 +392,15 @@ describe('KeyNoteCommandHandler', () => {
       'groupBookmarks.addKeyNoteToGroup',
       expect.any(Function)
     );
-    expect(context.subscriptions).toHaveLength(10);
+    expect(mockState.commands.registerCommand).toHaveBeenCalledWith(
+      'groupBookmarks.toggleKeyNoteGroupSortMode',
+      expect.any(Function)
+    );
+    expect(mockState.commands.registerCommand).toHaveBeenCalledWith(
+      'groupBookmarks.searchKeyNotes',
+      expect.any(Function)
+    );
+    expect(context.subscriptions).toHaveLength(12);
   });
 
   it('opens the custom key-note document after creating or finding the note when no panel editor is available', async () => {
@@ -1044,6 +1052,7 @@ describe('KeyNoteTreeProvider', () => {
     const keyNoteGroupManager = {
       getAllGroups: vi.fn().mockReturnValue([group]),
       getActiveKeyNoteGroupId: vi.fn().mockReturnValue(group.id),
+      getGroupById: vi.fn((id: string) => (id === group.id ? group : undefined)),
     };
     const relationManager = {
       getRelationsInGroup: vi.fn((groupId: string) => (groupId === group.id ? [relation] : [])),
