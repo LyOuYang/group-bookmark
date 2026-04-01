@@ -89,16 +89,23 @@ export class KeyNoteTreeProvider implements vscode.TreeDataProvider<KeyNoteTreeI
     }
 
     private getNoteItems(groupId: string): KeyNoteTreeItem[] {
-        return this.keyNoteRelationManager.getRelationsInGroup(groupId)
+        const group = this.keyNoteGroupManager.getGroupById(groupId);
+        const sortMode = group?.sortMode || 'custom';
+
+        const items = this.keyNoteRelationManager.getRelationsInGroup(groupId)
             .map(relation => {
                 const note = this.dataManager.getKeyNote(relation.keyNoteId);
-                if (!note) {
-                    return null;
-                }
-
-                return this.createNoteItem(note.id, groupId, note.term);
+                return note ? { note, relation, item: this.createNoteItem(note.id, groupId, note.term) } : null;
             })
-            .filter((item): item is KeyNoteTreeItem => item !== null);
+            .filter((x): x is NonNullable<typeof x> => x !== null);
+
+        if (sortMode === 'name_asc') {
+            items.sort((a, b) => a.note.term.localeCompare(b.note.term));
+        } else if (sortMode === 'name_desc') {
+            items.sort((a, b) => b.note.term.localeCompare(a.note.term));
+        }
+
+        return items.map(x => x.item);
     }
 
     private createGroupItem(group: { id: string; displayName: string }, isActive = false): KeyNoteTreeItem {
