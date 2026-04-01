@@ -43,6 +43,10 @@ export class KeyNoteCommandHandler {
             vscode.commands.registerCommand('groupBookmarks.deleteKeyNote', (item: KeyNoteTreeItemContext) => this.deleteKeyNote(item)),
             vscode.commands.registerCommand('groupBookmarks.addExistingKeyNoteToGroup', (item: KeyNoteTreeItemContext) => this.addExistingKeyNoteToGroup(item)),
             vscode.commands.registerCommand('groupBookmarks.addKeyNoteToGroup', (item: KeyNoteTreeItemContext) => this.addKeyNoteToGroup(item)),
+            vscode.commands.registerCommand('groupBookmarks.moveKeyNoteUp', (item: KeyNoteTreeItemContext) => this.moveKeyNote(item, 'up')),
+            vscode.commands.registerCommand('groupBookmarks.moveKeyNoteDown', (item: KeyNoteTreeItemContext) => this.moveKeyNote(item, 'down')),
+            vscode.commands.registerCommand('groupBookmarks.moveKeyNoteToTop', (item: KeyNoteTreeItemContext) => this.moveKeyNote(item, 'top')),
+            vscode.commands.registerCommand('groupBookmarks.moveKeyNoteToBottom', (item: KeyNoteTreeItemContext) => this.moveKeyNote(item, 'bottom')),
             vscode.commands.registerCommand('groupBookmarks.sortGroupCustom', (item: KeyNoteTreeItemContext) => this.setGroupSortMode(item, 'custom')),
             vscode.commands.registerCommand('groupBookmarks.sortGroupAsc', (item: KeyNoteTreeItemContext) => this.setGroupSortMode(item, 'name_asc')),
             vscode.commands.registerCommand('groupBookmarks.sortGroupDesc', (item: KeyNoteTreeItemContext) => this.setGroupSortMode(item, 'name_desc')),
@@ -413,6 +417,57 @@ export class KeyNoteCommandHandler {
                     `Failed to set group sort mode: ${error instanceof Error ? error.message : 'Unknown error'}`
                 );
             }
+        }
+    }
+
+    async moveKeyNote(item: KeyNoteTreeItemContext, direction: 'up' | 'down' | 'top' | 'bottom'): Promise<void> {
+        if (!item?.dataId || !item.groupId) {
+            return;
+        }
+
+        const noteId = item.dataId;
+        const groupId = item.groupId;
+
+        const group = this.keyNoteGroupManager.getGroupById(groupId);
+        if (group && group.sortMode && group.sortMode !== 'custom') {
+            vscode.window.showWarningMessage('Cannot reorder notes when non-custom sort mode is active. Toggle sort mode first.');
+            return;
+        }
+
+        try {
+            const relations = this.keyNoteRelationManager.getRelationsInGroup(groupId);
+            const index = relations.findIndex(r => r.keyNoteId === noteId);
+
+            if (index === -1) { return; }
+
+            const newRelations = [...relations];
+
+            if (direction === 'up') {
+                if (index > 0) {
+                    [newRelations[index - 1], newRelations[index]] = [newRelations[index], newRelations[index - 1]];
+                }
+            } else if (direction === 'down') {
+                if (index < newRelations.length - 1) {
+                    [newRelations[index], newRelations[index + 1]] = [newRelations[index + 1], newRelations[index]];
+                }
+            } else if (direction === 'top') {
+                if (index > 0) {
+                    const [rel] = newRelations.splice(index, 1);
+                    newRelations.unshift(rel);
+                }
+            } else if (direction === 'bottom') {
+                if (index < newRelations.length - 1) {
+                    const [rel] = newRelations.splice(index, 1);
+                    newRelations.push(rel);
+                }
+            }
+
+            const orderedIds = newRelations.map(r => r.id);
+            await this.keyNoteRelationManager.reorderRelationsInGroup(groupId, orderedIds);
+        } catch (error) {
+            vscode.window.showErrorMessage(
+                `Failed to move key note: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
         }
     }
 

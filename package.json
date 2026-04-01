@@ -218,6 +218,36 @@
         "icon": "$(trash)"
       },
       {
+        "command": "groupBookmarks.moveKeyNoteUp",
+        "title": "Move Up",
+        "category": "Group Bookmarks",
+        "icon": "$(arrow-up)"
+      },
+      {
+        "command": "groupBookmarks.moveKeyNoteDown",
+        "title": "Move Down",
+        "category": "Group Bookmarks",
+        "icon": "$(arrow-down)"
+      },
+      {
+        "command": "groupBookmarks.moveKeyNoteToTop",
+        "title": "Move to Top",
+        "category": "Group Bookmarks",
+        "icon": "$(arrow-up)"
+      },
+      {
+        "command": "groupBookmarks.moveKeyNoteToBottom",
+        "title": "Move to Bottom",
+        "category": "Group Bookmarks",
+        "icon": "$(arrow-down)"
+      },
+      {
+        "command": "groupBookmarks.moveBookmarkToGroup",
+        "title": "Move to Group",
+        "category": "Group Bookmarks",
+        "icon": "$(arrow-swap)"
+      },
+      {
         "command": "groupBookmarks.addExistingKeyNoteToGroup",
         "title": "Add Existing Note to Group",
         "category": "Group Bookmarks",
@@ -262,6 +292,16 @@
         "command": "groupBookmarks.moveDown",
         "key": "alt+down",
         "when": "view == groupBookmarksView && viewItem == bookmark && listFocus"
+      },
+      {
+        "command": "groupBookmarks.moveKeyNoteUp",
+        "key": "alt+up",
+        "when": "view == groupKeyNotesView && viewItem == key-note && listFocus"
+      },
+      {
+        "command": "groupBookmarks.moveKeyNoteDown",
+        "key": "alt+down",
+        "when": "view == groupKeyNotesView && viewItem == key-note && listFocus"
       }
     ],
     "viewsContainers": {
@@ -407,6 +447,11 @@
           "group": "1_move@4"
         },
         {
+          "command": "groupBookmarks.moveBookmarkToGroup",
+          "when": "view == groupBookmarksView && viewItem == bookmark",
+          "group": "1_move@5"
+        },
+        {
           "command": "groupBookmarks.renameBookmark",
           "when": "view == groupBookmarksView && viewItem == bookmark",
           "group": "2_edit@1"
@@ -419,6 +464,26 @@
         {
           "command": "groupBookmarks.deleteBookmark",
           "when": "view == groupBookmarksView && viewItem == bookmark"
+        },
+        {
+          "command": "groupBookmarks.moveKeyNoteUp",
+          "when": "view == groupKeyNotesView && viewItem == key-note",
+          "group": "1_move@1"
+        },
+        {
+          "command": "groupBookmarks.moveKeyNoteDown",
+          "when": "view == groupKeyNotesView && viewItem == key-note",
+          "group": "1_move@2"
+        },
+        {
+          "command": "groupBookmarks.moveKeyNoteToTop",
+          "when": "view == groupKeyNotesView && viewItem == key-note",
+          "group": "1_move@3"
+        },
+        {
+          "command": "groupBookmarks.moveKeyNoteToBottom",
+          "when": "view == groupKeyNotesView && viewItem == key-note",
+          "group": "1_move@4"
         },
         {
           "command": "groupBookmarks.openKeyNote",

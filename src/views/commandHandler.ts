@@ -125,6 +125,13 @@ export class CommandHandler {
                 this.moveBookmark(item, 'bottom')
             )
         );
+
+        // 移动到其他分组
+        context.subscriptions.push(
+            vscode.commands.registerCommand('groupBookmarks.moveBookmarkToGroup', (item: ViewTreeItem) =>
+                this.moveBookmarkToGroup(item)
+            )
+        );
     }
 
     /**
@@ -737,7 +744,7 @@ export class CommandHandler {
     private async moveBookmark(item: ViewTreeItem, direction: 'up' | 'down' | 'top' | 'bottom'): Promise<void> {
         if (!item?.dataId) {return;}
 
-        // 解析 ID: bookmarkId_groupId
+        // item.dataId 是 relation.id (bookmarkId_groupId)
         const parts = item.dataId.split('_');
         const groupId = parts[1];
 
@@ -762,14 +769,14 @@ export class CommandHandler {
             } else if (direction === 'top') {
                 // 移到顶部：将当前项移到数组开头
                 if (index > 0) {
-                    const [item] = newRelations.splice(index, 1);
-                    newRelations.unshift(item);
+                    const [rel] = newRelations.splice(index, 1);
+                    newRelations.unshift(rel);
                 }
             } else if (direction === 'bottom') {
                 // 移到底部：将当前项移到数组末尾
                 if (index < newRelations.length - 1) {
-                    const [item] = newRelations.splice(index, 1);
-                    newRelations.push(item);
+                    const [rel] = newRelations.splice(index, 1);
+                    newRelations.push(rel);
                 }
             }
 
@@ -780,6 +787,54 @@ export class CommandHandler {
             // 保持焦点? TreeView 可能会刷新导致失去焦点，但 VS Code 通常会尝试保持
         } catch (error) {
             Logger.error('Failed to move bookmark', error);
+        }
+    }
+
+    /**
+     * 移动书签到另一个分组
+     */
+    private async moveBookmarkToGroup(item: ViewTreeItem): Promise<void> {
+        if (!item?.dataId) {
+            vscode.window.showErrorMessage('Invalid bookmark item');
+            return;
+        }
+
+        const parts = item.dataId.split('_');
+        if (parts.length !== 2) {
+            vscode.window.showErrorMessage('Invalid bookmark ID format');
+            return;
+        }
+        const [bookmarkId, currentGroupId] = parts;
+
+        const allGroups = this.groupManager.getAllGroups();
+        const availableGroups = allGroups.filter(g => g.id !== currentGroupId);
+
+        if (availableGroups.length === 0) {
+            vscode.window.showWarningMessage('No other groups available');
+            return;
+        }
+
+        const groupItems = availableGroups.map(g => ({
+            label: `$(bookmark) ${g.name}`,
+            groupId: g.id
+        }));
+
+        const selectedGroup = await vscode.window.showQuickPick(groupItems, {
+            placeHolder: 'Select target group to move bookmark to'
+        });
+
+        if (!selectedGroup) {
+            return;
+        }
+
+        try {
+            await this.relationManager.moveBookmarkToGroup(bookmarkId, currentGroupId, selectedGroup.groupId);
+            vscode.window.showInformationMessage(`Bookmark moved successfully`);
+        } catch (error) {
+            Logger.error('Failed to move bookmark to group', error);
+            vscode.window.showErrorMessage(
+                `Failed to move bookmark to group: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
         }
     }
 }

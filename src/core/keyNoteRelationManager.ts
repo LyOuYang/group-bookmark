@@ -70,6 +70,13 @@ export class KeyNoteRelationManager {
     }
 
     /**
+     * 重新排序分组中的关联
+     */
+    async reorderRelationsInGroup(groupId: string, relationIds: string[]): Promise<void> {
+        await this.dataManager.reorderKeyNoteRelationsInGroup(groupId, relationIds);
+    }
+
+    /**
      * 获取某个词条所属的分组
      */
     getGroupsForKeyNote(noteId: string): KeyNoteGroup[] {
