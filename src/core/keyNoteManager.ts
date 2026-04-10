@@ -46,6 +46,31 @@ export class KeyNoteManager {
     }
 
     /**
+     * 重命名词条
+     */
+    async renameKeyNote(noteId: string, term: string): Promise<void> {
+        const normalizedTerm = extractNormalizedTerm(term);
+        if (!normalizedTerm) {
+            throw new Error('Term cannot be blank');
+        }
+
+        const note = this.getById(noteId);
+        if (!note) {
+            throw new Error(`Key note ${noteId} not found`);
+        }
+
+        const existing = this.getByNormalizedTerm(normalizedTerm);
+        if (existing && existing.id !== noteId) {
+            throw new Error('Key note term already exists');
+        }
+
+        await this.dataManager.updateKeyNote(noteId, {
+            term: term.trim(),
+            normalizedTerm,
+        });
+    }
+
+    /**
      * 删除词条笔记
      */
     async deleteKeyNote(noteId: string): Promise<void> {

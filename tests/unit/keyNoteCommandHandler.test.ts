@@ -378,7 +378,15 @@ describe('KeyNoteCommandHandler', () => {
       expect.any(Function)
     );
     expect(mockState.commands.registerCommand).toHaveBeenCalledWith(
+      'groupBookmarks.renameKeyNote',
+      expect.any(Function)
+    );
+    expect(mockState.commands.registerCommand).toHaveBeenCalledWith(
       'groupBookmarks.addExistingKeyNoteToGroup',
+      expect.any(Function)
+    );
+    expect(mockState.commands.registerCommand).toHaveBeenCalledWith(
+      'groupBookmarks.moveKeyNoteToGroup',
       expect.any(Function)
     );
     expect(mockState.commands.registerCommand).toHaveBeenCalledWith(
@@ -405,7 +413,7 @@ describe('KeyNoteCommandHandler', () => {
       'groupBookmarks.searchKeyNotes',
       expect.any(Function)
     );
-    expect(context.subscriptions).toHaveLength(18);
+    expect(context.subscriptions).toHaveLength(20);
   });
 
   it('opens the custom key-note document after creating or finding the note when no panel editor is available', async () => {
@@ -483,6 +491,33 @@ describe('KeyNoteCommandHandler', () => {
 
     expect(sidebarPreviewProvider.editKeyNote).toHaveBeenCalledWith('note-1');
     expect(documentService.openNoteDocument).not.toHaveBeenCalled();
+  });
+
+  it('passes the current group context to the sidebar editor when opening a note from the tree', async () => {
+    const sidebarPreviewProvider = {
+      editKeyNote: vi.fn(),
+    };
+
+    const handler = new KeyNoteCommandHandler(
+      asKeyNoteManager({ createOrGetKeyNote: vi.fn() }),
+      asKeyNoteGroupManager({ getActiveKeyNoteGroupId: vi.fn(), getGroupById: vi.fn(), getAllGroups: vi.fn() }),
+      asKeyNoteRelationManager({
+        addKeyNoteToGroup: vi.fn(),
+        removeKeyNoteFromGroup: vi.fn(),
+        deleteKeyNoteEverywhere: vi.fn(),
+        getGroupsForKeyNote: vi.fn(),
+      }),
+      asKeyNoteDocumentService({ openNoteDocument: vi.fn() }),
+      asSidebarPreviewProvider(sidebarPreviewProvider)
+    );
+
+    await handler.openKeyNote({
+      dataId: 'note-1',
+      groupId: 'group-2',
+      label: 'User Table',
+    } as KeyNoteTreeItemLike);
+
+    expect(sidebarPreviewProvider.editKeyNote).toHaveBeenCalledWith('note-1', 'group-2');
   });
 
   it('opens an existing key note from the tree item command', async () => {
@@ -710,6 +745,88 @@ describe('KeyNoteCommandHandler', () => {
       expect.objectContaining({ groupId: 'group-3' }),
     ]);
     expect(relationManager.addKeyNoteToGroup).toHaveBeenCalledWith('note-1', 'group-3');
+  });
+
+  it('renames a key note using the current term as the default input value', async () => {
+    const note = makeNote('note-1', { term: 'User Table' });
+    const keyNoteManager = {
+      createOrGetKeyNote: vi.fn(),
+      deleteKeyNote: vi.fn(),
+      getById: vi.fn().mockReturnValue(note),
+      renameKeyNote: vi.fn().mockResolvedValue(undefined),
+    };
+    mockState.window.showInputBox.mockResolvedValue('Order Table');
+
+    const handler = new KeyNoteCommandHandler(
+      asKeyNoteManager(keyNoteManager),
+      asKeyNoteGroupManager({ getActiveKeyNoteGroupId: vi.fn(), getGroupById: vi.fn(), getAllGroups: vi.fn() }),
+      asKeyNoteRelationManager({
+        addKeyNoteToGroup: vi.fn(),
+        removeKeyNoteFromGroup: vi.fn(),
+        deleteKeyNoteEverywhere: vi.fn(),
+        getGroupsForKeyNote: vi.fn().mockReturnValue([]),
+      }),
+      asKeyNoteDocumentService({ openNoteDocument: vi.fn() })
+    );
+
+    await handler.renameKeyNote({
+      dataId: note.id,
+      groupId: 'group-1',
+      label: note.term,
+    } as KeyNoteTreeItemLike);
+
+    expect(mockState.window.showInputBox).toHaveBeenCalledWith({
+      prompt: 'Enter new note term',
+      value: note.term,
+      placeHolder: 'Key note term',
+    });
+    expect(keyNoteManager.renameKeyNote).toHaveBeenCalledWith(note.id, 'Order Table');
+    expect(mockState.window.showInformationMessage).toHaveBeenCalledWith('Note renamed to "Order Table"');
+  });
+
+  it('moves a key note to another group from the context menu', async () => {
+    const userNotes = makeGroup('group-1', { displayName: '1. User Notes', name: 'User Notes' });
+    const apiNotes = makeGroup('group-2', { displayName: '2. API Notes', name: 'API Notes' });
+    const opsNotes = makeGroup('group-3', { displayName: '3. Ops Notes', name: 'Ops Notes' });
+    const keyNoteGroupManager = {
+      getActiveKeyNoteGroupId: vi.fn(),
+      getGroupById: vi.fn(),
+      getAllGroups: vi.fn().mockReturnValue([userNotes, apiNotes, opsNotes]),
+    };
+    const relationManager = {
+      addKeyNoteToGroup: vi.fn().mockResolvedValue(undefined),
+      moveKeyNoteToGroup: vi.fn().mockResolvedValue(undefined),
+      removeKeyNoteFromGroup: vi.fn(),
+      deleteKeyNoteEverywhere: vi.fn(),
+      getGroupsForKeyNote: vi.fn().mockReturnValue([userNotes, apiNotes]),
+    };
+    mockState.window.showQuickPick.mockResolvedValue({
+      label: '3. Ops Notes',
+      groupId: 'group-3',
+    });
+
+    const handler = new KeyNoteCommandHandler(
+      asKeyNoteManager({ createOrGetKeyNote: vi.fn(), deleteKeyNote: vi.fn() }),
+      asKeyNoteGroupManager(keyNoteGroupManager),
+      asKeyNoteRelationManager(relationManager),
+      asKeyNoteDocumentService({ openNoteDocument: vi.fn() })
+    );
+
+    await handler.moveKeyNoteToGroup({
+      dataId: 'note-1',
+      groupId: 'group-1',
+      label: 'User Table',
+    } as KeyNoteTreeItemLike);
+
+    expect(mockState.window.showQuickPick).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({ groupId: 'group-2' }),
+        expect.objectContaining({ groupId: 'group-3' }),
+      ],
+      { placeHolder: 'Select target group to move note to' }
+    );
+    expect(relationManager.moveKeyNoteToGroup).toHaveBeenCalledWith('note-1', 'group-1', 'group-3');
+    expect(mockState.window.showInformationMessage).toHaveBeenCalledWith('Note moved successfully');
   });
 
   it('sets the selected key-note group as active and reports it', async () => {
@@ -1236,7 +1353,9 @@ describe('package contributions for key notes', () => {
     expect(commands.some(item => item.command === 'groupBookmarks.deleteKeyNoteGroup')).toBe(true);
     expect(commands.some(item => item.command === 'groupBookmarks.removeKeyNoteFromGroup')).toBe(true);
     expect(commands.some(item => item.command === 'groupBookmarks.deleteKeyNote')).toBe(true);
+    expect(commands.some(item => item.command === 'groupBookmarks.renameKeyNote')).toBe(true);
     expect(commands.some(item => item.command === 'groupBookmarks.addExistingKeyNoteToGroup')).toBe(true);
+    expect(commands.some(item => item.command === 'groupBookmarks.moveKeyNoteToGroup')).toBe(true);
     expect(commands.some(item => item.command === 'groupBookmarks.setActiveKeyNoteGroup')).toBe(true);
     expect(sidebarViews.some(item => item.id === 'groupKeyNotesView')).toBe(true);
     expect(sidebarViews.some(item => item.id === 'groupKeyNotePreviewView')).toBe(false);
@@ -1286,15 +1405,21 @@ describe('package contributions for key notes', () => {
   it('adds inline and context menu entries for key-note tree items and groups', () => {
     const packageJsonPath = path.resolve(__dirname, '..', '..', 'package.json');
     const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+    const commands = packageJson.contributes.commands as Array<{ command: string; title?: string }>;
     const viewContextMenus = packageJson.contributes.menus['view/item/context'] as Array<{ command: string; when?: string; group?: string }>;
 
     const openEntry = viewContextMenus.find(item => item.command === 'groupBookmarks.openKeyNote');
     const removeEntry = viewContextMenus.find(item => item.command === 'groupBookmarks.removeKeyNoteFromGroup');
     const deleteEntries = viewContextMenus.filter(item => item.command === 'groupBookmarks.deleteKeyNote');
+    const renameNoteEntry = viewContextMenus.find(item => item.command === 'groupBookmarks.renameKeyNote');
     const addExistingEntry = viewContextMenus.find(item => item.command === 'groupBookmarks.addExistingKeyNoteToGroup');
+    const moveToGroupEntry = viewContextMenus.find(item => item.command === 'groupBookmarks.moveKeyNoteToGroup');
     const setActiveEntries = viewContextMenus.filter(item => item.command === 'groupBookmarks.setActiveKeyNoteGroup');
     const renameGroupEntry = viewContextMenus.find(item => item.command === 'groupBookmarks.renameKeyNoteGroup');
     const deleteGroupEntry = viewContextMenus.find(item => item.command === 'groupBookmarks.deleteKeyNoteGroup');
+    const renameNoteCommand = commands.find(item => item.command === 'groupBookmarks.renameKeyNote');
+    const addExistingCommand = commands.find(item => item.command === 'groupBookmarks.addExistingKeyNoteToGroup');
+    const moveToGroupCommand = commands.find(item => item.command === 'groupBookmarks.moveKeyNoteToGroup');
 
     expect(openEntry).toEqual(expect.objectContaining({
       when: 'view == groupKeyNotesView && viewItem == key-note',
@@ -1327,9 +1452,18 @@ describe('package contributions for key notes', () => {
         when: 'view == groupKeyNotesView && viewItem == key-note',
       }),
     ]));
+    expect(renameNoteEntry).toEqual(expect.objectContaining({
+      when: 'view == groupKeyNotesView && viewItem == key-note',
+    }));
     expect(addExistingEntry).toEqual(expect.objectContaining({
       when: 'view == groupKeyNotesView && viewItem == key-note',
     }));
+    expect(moveToGroupEntry).toEqual(expect.objectContaining({
+      when: 'view == groupKeyNotesView && viewItem == key-note',
+    }));
+    expect(renameNoteCommand?.title).toBe('Rename Note');
+    expect(addExistingCommand?.title).toBe('Add to Another Group');
+    expect(moveToGroupCommand?.title).toBe('Move to Group');
   });
 
   it('adds a title-bar create action for the key-notes view', () => {
@@ -1389,7 +1523,7 @@ describe('KeyNoteSidebarPreviewProvider', () => {
       {
         getGroupsForKeyNote: vi.fn().mockReturnValue([]),
         addKeyNoteToGroup: vi.fn(),
-      } as unknown as Pick<KeyNoteRelationManager, 'getGroupsForKeyNote' | 'addKeyNoteToGroup'>,
+      } as unknown as Pick<KeyNoteRelationManager, 'getGroupsForKeyNote' | 'addKeyNoteToGroup' | 'moveKeyNoteToGroup'>,
       {
         getAllGroups: vi.fn().mockReturnValue([]),
         getActiveKeyNoteGroupId: vi.fn(),
@@ -1424,7 +1558,7 @@ describe('KeyNoteSidebarPreviewProvider', () => {
           makeGroup('group-1', { displayName: '1. User Notes', name: 'User Notes' }),
         ]),
         addKeyNoteToGroup: vi.fn(),
-      } as unknown as Pick<KeyNoteRelationManager, 'getGroupsForKeyNote' | 'addKeyNoteToGroup'>,
+      } as unknown as Pick<KeyNoteRelationManager, 'getGroupsForKeyNote' | 'addKeyNoteToGroup' | 'moveKeyNoteToGroup'>,
       {
         getAllGroups: vi.fn().mockReturnValue([]),
         getActiveKeyNoteGroupId: vi.fn(),
@@ -1473,7 +1607,7 @@ describe('KeyNoteSidebarPreviewProvider', () => {
       {
         getGroupsForKeyNote: vi.fn().mockReturnValue([]),
         addKeyNoteToGroup: vi.fn(),
-      } as unknown as Pick<KeyNoteRelationManager, 'getGroupsForKeyNote' | 'addKeyNoteToGroup'>,
+      } as unknown as Pick<KeyNoteRelationManager, 'getGroupsForKeyNote' | 'addKeyNoteToGroup' | 'moveKeyNoteToGroup'>,
       {
         getAllGroups: vi.fn().mockReturnValue([]),
         getActiveKeyNoteGroupId: vi.fn(),
@@ -1514,7 +1648,7 @@ describe('KeyNoteSidebarPreviewProvider', () => {
       {
         getGroupsForKeyNote: vi.fn().mockReturnValue([]),
         addKeyNoteToGroup: vi.fn(),
-      } as unknown as Pick<KeyNoteRelationManager, 'getGroupsForKeyNote' | 'addKeyNoteToGroup'>,
+      } as unknown as Pick<KeyNoteRelationManager, 'getGroupsForKeyNote' | 'addKeyNoteToGroup' | 'moveKeyNoteToGroup'>,
       {
         getAllGroups: vi.fn().mockReturnValue([]),
         getActiveKeyNoteGroupId: vi.fn(),
@@ -1551,7 +1685,7 @@ describe('KeyNoteSidebarPreviewProvider', () => {
       {
         getGroupsForKeyNote: vi.fn().mockReturnValue([]),
         addKeyNoteToGroup: vi.fn(),
-      } as unknown as Pick<KeyNoteRelationManager, 'getGroupsForKeyNote' | 'addKeyNoteToGroup'>,
+      } as unknown as Pick<KeyNoteRelationManager, 'getGroupsForKeyNote' | 'addKeyNoteToGroup' | 'moveKeyNoteToGroup'>,
       {
         getAllGroups: vi.fn().mockReturnValue([]),
         getActiveKeyNoteGroupId: vi.fn(),
@@ -1581,6 +1715,50 @@ describe('KeyNoteSidebarPreviewProvider', () => {
     expect(view.show).toHaveBeenCalledWith(true);
   });
 
+  it('moves an existing note to the selected group when saving from the webview editor', async () => {
+    const updateContent = vi.fn().mockResolvedValue(undefined);
+    const fromGroup = makeGroup('group-1', { displayName: '1. User Notes', name: 'User Notes' });
+    const toGroup = makeGroup('group-2', { displayName: '2. API Notes', name: 'API Notes' });
+    let currentGroups = [fromGroup];
+    const moveKeyNoteToGroup = vi.fn().mockImplementation(async (_noteId: string, fromGroupId: string, toGroupId: string) => {
+      currentGroups = currentGroups.filter(group => group.id !== fromGroupId);
+      currentGroups.push(toGroupId === toGroup.id ? toGroup : fromGroup);
+    });
+    const addKeyNoteToGroup = vi.fn().mockResolvedValue(undefined);
+
+    const provider = new KeyNoteSidebarPreviewProvider(
+      {
+        getById: vi.fn().mockReturnValue(makeNote('note-1', { term: 'User Table', contentMarkdown: 'Body' })),
+        getByNormalizedTerm: vi.fn(),
+        createOrGetKeyNote: vi.fn()
+      } as unknown as Pick<KeyNoteManager, 'getById' | 'getByNormalizedTerm' | 'createOrGetKeyNote'>,
+      {
+        getGroupsForKeyNote: vi.fn(() => currentGroups),
+        addKeyNoteToGroup,
+        moveKeyNoteToGroup,
+      } as unknown as Pick<KeyNoteRelationManager, 'getGroupsForKeyNote' | 'addKeyNoteToGroup' | 'moveKeyNoteToGroup'>,
+      {
+        getAllGroups: vi.fn().mockReturnValue([fromGroup, toGroup]),
+        getActiveKeyNoteGroupId: vi.fn(),
+        setActiveKeyNoteGroupId: vi.fn().mockResolvedValue(undefined),
+        createGroup: vi.fn(),
+      } as unknown as Pick<KeyNoteGroupManager, 'getAllGroups' | 'getActiveKeyNoteGroupId' | 'setActiveKeyNoteGroupId' | 'createGroup'>,
+      vi.fn(),
+      vi.fn(),
+      updateContent
+    );
+    const view = createWebviewView();
+
+    provider.resolveWebviewView(view as unknown as vscode.WebviewView);
+    provider.editKeyNote('note-1', 'group-1');
+    await view.fireMessage({ type: 'ready' });
+    await view.fireMessage({ type: 'save', content: '# Saved body', groupId: 'group-2' });
+
+    expect(updateContent).toHaveBeenCalledWith('note-1', '# Saved body');
+    expect(moveKeyNoteToGroup).toHaveBeenCalledWith('note-1', 'group-1', 'group-2');
+    expect(addKeyNoteToGroup).not.toHaveBeenCalled();
+  });
+
   it('opens the note-editor panel when editing before the view has been resolved', async () => {
     const provider = new KeyNoteSidebarPreviewProvider(
       {
@@ -1591,7 +1769,7 @@ describe('KeyNoteSidebarPreviewProvider', () => {
       {
         getGroupsForKeyNote: vi.fn().mockReturnValue([]),
         addKeyNoteToGroup: vi.fn(),
-      } as unknown as Pick<KeyNoteRelationManager, 'getGroupsForKeyNote' | 'addKeyNoteToGroup'>,
+      } as unknown as Pick<KeyNoteRelationManager, 'getGroupsForKeyNote' | 'addKeyNoteToGroup' | 'moveKeyNoteToGroup'>,
       {
         getAllGroups: vi.fn().mockReturnValue([]),
         getActiveKeyNoteGroupId: vi.fn(),
@@ -1614,9 +1792,9 @@ describe('KeyNoteSidebarPreviewProvider', () => {
 describe('extension key-note tree preview wiring', () => {
   it('registers a tree selection listener that previews the selected key note and clears on non-note items', () => {
     const previewKeyNote = vi.fn();
-    let selectionListener: ((event: { selection: Array<{ type?: string; dataId?: string }> }) => void) | undefined;
+    let selectionListener: ((event: { selection: Array<{ type?: string; dataId?: string; groupId?: string }> }) => void) | undefined;
     const treeView = {
-      onDidChangeSelection: vi.fn((listener: (event: { selection: Array<{ type?: string; dataId?: string }> }) => void) => {
+      onDidChangeSelection: vi.fn((listener: (event: { selection: Array<{ type?: string; dataId?: string; groupId?: string }> }) => void) => {
         selectionListener = listener;
         return { dispose: vi.fn() };
       }),
@@ -1632,11 +1810,11 @@ describe('extension key-note tree preview wiring', () => {
     expect(treeView.onDidChangeSelection).toHaveBeenCalledTimes(1);
     expect(context.subscriptions).toHaveLength(1);
 
-    selectionListener?.({ selection: [{ type: 'key-note', dataId: 'note-1' }] });
+    selectionListener?.({ selection: [{ type: 'key-note', dataId: 'note-1', groupId: 'group-2' }] });
     selectionListener?.({ selection: [{ type: 'key-note-group', dataId: 'group-1' }] });
 
-    expect(previewKeyNote).toHaveBeenNthCalledWith(1, 'note-1');
-    expect(previewKeyNote).toHaveBeenNthCalledWith(2, undefined);
+    expect(previewKeyNote).toHaveBeenNthCalledWith(1, 'note-1', 'group-2');
+    expect(previewKeyNote).toHaveBeenNthCalledWith(2, undefined, undefined);
   });
 });
 

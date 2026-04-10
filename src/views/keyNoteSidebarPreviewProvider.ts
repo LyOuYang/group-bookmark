@@ -237,6 +237,8 @@ function renderMarkdown(markdown: string): string {
 export class KeyNoteSidebarPreviewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
     private webviewView: vscode.WebviewView | undefined;
     private selectedNoteId: string | undefined;
+    private currentGroupId: string | undefined;
+    private pendingGroupId: string | undefined;
     private mode: 'preview' | 'edit' = 'preview';
     private draftContent = '';
     private readonly disposables: vscode.Disposable[];
@@ -254,7 +256,7 @@ export class KeyNoteSidebarPreviewProvider implements vscode.WebviewViewProvider
 
     constructor(
         private readonly keyNoteManager: Pick<KeyNoteManager, 'getById' | 'getByNormalizedTerm' | 'createOrGetKeyNote'>,
-        private readonly keyNoteRelationManager: Pick<KeyNoteRelationManager, 'getGroupsForKeyNote' | 'addKeyNoteToGroup'>,
+        private readonly keyNoteRelationManager: Pick<KeyNoteRelationManager, 'getGroupsForKeyNote' | 'addKeyNoteToGroup' | 'moveKeyNoteToGroup'>,
         private readonly keyNoteGroupManager: Pick<KeyNoteGroupManager, 'getAllGroups' | 'getActiveKeyNoteGroupId' | 'setActiveKeyNoteGroupId' | 'createGroup'>,
         onDidChangeKeyNotes: vscode.Event<void>,
         onDidChangeKeyNoteRelations: vscode.Event<void>,
@@ -285,16 +287,20 @@ export class KeyNoteSidebarPreviewProvider implements vscode.WebviewViewProvider
         this.webviewView.webview.html = this.buildStaticHtml();
     }
 
-    previewKeyNote(noteId: string | undefined): void {
+    previewKeyNote(noteId: string | undefined, groupId?: string): void {
         this.selectedNoteId = noteId;
+        this.currentGroupId = noteId ? groupId : undefined;
+        this.pendingGroupId = this.currentGroupId;
         this.mode = 'preview';
         this.syncDraftContent();
         void this.revealEditorView();
         this.render();
     }
 
-    editKeyNote(noteId: string): void {
+    editKeyNote(noteId: string, groupId?: string): void {
         this.selectedNoteId = noteId;
+        this.currentGroupId = groupId;
+        this.pendingGroupId = groupId;
         this.draftTerm = undefined;
         this.isDirty = false;
         this.mode = 'edit';
@@ -336,6 +342,8 @@ export class KeyNoteSidebarPreviewProvider implements vscode.WebviewViewProvider
         const existingNote = this.keyNoteManager.getByNormalizedTerm(normalized);
         if (existingNote) {
             this.selectedNoteId = existingNote.id;
+            this.currentGroupId = undefined;
+            this.pendingGroupId = undefined;
             this.draftTerm = undefined;
             this.mode = 'preview';
             this.isDirty = false;
@@ -345,6 +353,8 @@ export class KeyNoteSidebarPreviewProvider implements vscode.WebviewViewProvider
             this._onDidAutoFollowNote.fire(existingNote.id);
         } else {
             this.selectedNoteId = undefined;
+            this.currentGroupId = undefined;
+            this.pendingGroupId = undefined;
             this.draftTerm = word;
             this.mode = 'preview';
             this.draftContent = '';
@@ -409,7 +419,7 @@ export class KeyNoteSidebarPreviewProvider implements vscode.WebviewViewProvider
                 try {
                     const newGroup = await this.keyNoteGroupManager.createGroup(newGroupName.trim());
                     await this.keyNoteGroupManager.setActiveKeyNoteGroupId(newGroup.id);
-                    // The new active group will be automatically selected in the re-rendered select box.
+                    this.pendingGroupId = newGroup.id;
                     this.render();
                 } catch (error) {
                     vscode.window.showErrorMessage(`Failed to create group: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -425,6 +435,7 @@ export class KeyNoteSidebarPreviewProvider implements vscode.WebviewViewProvider
                 const newNote = await this.keyNoteManager.createOrGetKeyNote(this.draftTerm);
                 noteId = newNote.id;
                 this.selectedNoteId = noteId;
+                this.currentGroupId = undefined;
                 this.draftTerm = undefined;
             }
 
@@ -432,9 +443,21 @@ export class KeyNoteSidebarPreviewProvider implements vscode.WebviewViewProvider
 
             await this.updateKeyNoteContent(noteId, typedMessage.content);
             if (typedMessage.groupId) {
-                // 如果用户刚刚选择了分组，或者已有分组，通过保存事件强关联
-                await this.keyNoteRelationManager.addKeyNoteToGroup(noteId, typedMessage.groupId);
+                const existingGroups = this.keyNoteRelationManager.getGroupsForKeyNote(noteId);
+                const existingGroupIds = new Set(existingGroups.map(group => group.id));
+                const sourceGroupId = this.currentGroupId && existingGroupIds.has(this.currentGroupId)
+                    ? this.currentGroupId
+                    : existingGroups[0]?.id;
+
+                if (sourceGroupId && sourceGroupId !== typedMessage.groupId) {
+                    await this.keyNoteRelationManager.moveKeyNoteToGroup(noteId, sourceGroupId, typedMessage.groupId);
+                } else if (!existingGroupIds.has(typedMessage.groupId)) {
+                    await this.keyNoteRelationManager.addKeyNoteToGroup(noteId, typedMessage.groupId);
+                }
+
                 await this.keyNoteGroupManager.setActiveKeyNoteGroupId(typedMessage.groupId);
+                this.currentGroupId = typedMessage.groupId;
+                this.pendingGroupId = typedMessage.groupId;
             }
             this.draftContent = typedMessage.content;
             this.isDirty = false;
@@ -483,12 +506,7 @@ export class KeyNoteSidebarPreviewProvider implements vscode.WebviewViewProvider
         const allGroups = this.keyNoteGroupManager.getAllGroups();
         const activeGroupId = this.keyNoteGroupManager.getActiveKeyNoteGroupId();
         const existingGroups = note ? this.keyNoteRelationManager.getGroupsForKeyNote(note.id) : undefined;
-        let targetGroupId = '';
-        if (existingGroups && existingGroups.length > 0) {
-            targetGroupId = existingGroups[0].id;
-        } else if (activeGroupId) {
-            targetGroupId = activeGroupId;
-        }
+        const targetGroupId = this.resolveTargetGroupId(existingGroups, allGroups.map(group => group.id), activeGroupId);
         return {
             mode: this.mode,
             title,
@@ -510,6 +528,32 @@ export class KeyNoteSidebarPreviewProvider implements vscode.WebviewViewProvider
             return;
         }
         void this.webviewView.webview.postMessage({ type: 'update', state: this.buildViewState() });
+    }
+
+    private resolveTargetGroupId(
+        existingGroups: Array<{ id: string }> | undefined,
+        allGroupIds: string[],
+        activeGroupId: string | undefined
+    ): string {
+        const existingGroupIds = new Set((existingGroups ?? []).map(group => group.id));
+
+        if (this.pendingGroupId && (existingGroupIds.has(this.pendingGroupId) || allGroupIds.includes(this.pendingGroupId))) {
+            return this.pendingGroupId;
+        }
+
+        if (this.currentGroupId && existingGroupIds.has(this.currentGroupId)) {
+            return this.currentGroupId;
+        }
+
+        if (activeGroupId && existingGroupIds.has(activeGroupId)) {
+            return activeGroupId;
+        }
+
+        if (existingGroups && existingGroups.length > 0) {
+            return existingGroups[0].id;
+        }
+
+        return activeGroupId ?? '';
     }
 
     private syncDraftContent(): void {

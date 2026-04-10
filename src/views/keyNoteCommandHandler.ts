@@ -19,7 +19,7 @@ type KeyNoteTreeItemContext = {
 };
 
 type KeyNoteSidebarEditor = {
-    editKeyNote: (noteId: string) => void;
+    editKeyNote: (noteId: string, groupId?: string) => void;
 };
 
 export class KeyNoteCommandHandler {
@@ -41,7 +41,9 @@ export class KeyNoteCommandHandler {
             vscode.commands.registerCommand('groupBookmarks.setActiveKeyNoteGroup', (item: KeyNoteTreeItemContext) => this.setActiveKeyNoteGroup(item)),
             vscode.commands.registerCommand('groupBookmarks.removeKeyNoteFromGroup', (item: KeyNoteTreeItemContext) => this.removeKeyNoteFromGroup(item)),
             vscode.commands.registerCommand('groupBookmarks.deleteKeyNote', (item: KeyNoteTreeItemContext) => this.deleteKeyNote(item)),
+            vscode.commands.registerCommand('groupBookmarks.renameKeyNote', (item: KeyNoteTreeItemContext) => this.renameKeyNote(item)),
             vscode.commands.registerCommand('groupBookmarks.addExistingKeyNoteToGroup', (item: KeyNoteTreeItemContext) => this.addExistingKeyNoteToGroup(item)),
+            vscode.commands.registerCommand('groupBookmarks.moveKeyNoteToGroup', (item: KeyNoteTreeItemContext) => this.moveKeyNoteToGroup(item)),
             vscode.commands.registerCommand('groupBookmarks.addKeyNoteToGroup', (item: KeyNoteTreeItemContext) => this.addKeyNoteToGroup(item)),
             vscode.commands.registerCommand('groupBookmarks.moveKeyNoteUp', (item: KeyNoteTreeItemContext) => this.moveKeyNote(item, 'up')),
             vscode.commands.registerCommand('groupBookmarks.moveKeyNoteDown', (item: KeyNoteTreeItemContext) => this.moveKeyNote(item, 'down')),
@@ -131,7 +133,7 @@ export class KeyNoteCommandHandler {
 
         try {
             if (this.keyNoteSidebarEditor) {
-                this.keyNoteSidebarEditor.editKeyNote(item.dataId);
+                this.keyNoteSidebarEditor.editKeyNote(item.dataId, item.groupId);
             } else {
                 await this.keyNoteDocumentService.openNoteDocument(item.dataId);
             }
@@ -256,6 +258,38 @@ export class KeyNoteCommandHandler {
         }
     }
 
+    async renameKeyNote(item: KeyNoteTreeItemContext): Promise<void> {
+        if (!item?.dataId) {
+            vscode.window.showErrorMessage('Invalid key-note item');
+            return;
+        }
+
+        const note = this.keyNoteManager.getById(item.dataId);
+        if (!note) {
+            return;
+        }
+
+        const newTerm = await vscode.window.showInputBox({
+            prompt: 'Enter new note term',
+            value: note.term,
+            placeHolder: 'Key note term'
+        });
+
+        if (!newTerm || newTerm === note.term) {
+            return;
+        }
+
+        try {
+            const trimmedTerm = newTerm.trim();
+            await this.keyNoteManager.renameKeyNote(note.id, trimmedTerm);
+            vscode.window.showInformationMessage(`Note renamed to "${trimmedTerm}"`);
+        } catch (error) {
+            vscode.window.showErrorMessage(
+                `Failed to rename key note: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
+        }
+    }
+
     async addExistingKeyNoteToGroup(item: KeyNoteTreeItemContext): Promise<void> {
         if (!item?.dataId) {
             vscode.window.showWarningMessage('Invalid key-note item');
@@ -291,6 +325,42 @@ export class KeyNoteCommandHandler {
         } catch (error) {
             vscode.window.showErrorMessage(
                 `Failed to add existing key note to group: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
+        }
+    }
+
+    async moveKeyNoteToGroup(item: KeyNoteTreeItemContext): Promise<void> {
+        if (!item?.dataId || !item.groupId) {
+            vscode.window.showWarningMessage('Invalid key-note item');
+            return;
+        }
+
+        const availableGroups = this.keyNoteGroupManager.getAllGroups().filter(group => group.id !== item.groupId);
+        if (availableGroups.length === 0) {
+            vscode.window.showWarningMessage('No other key-note groups available');
+            return;
+        }
+
+        const quickPickItems: KeyNoteGroupQuickPickItem[] = availableGroups.map(group => ({
+            label: group.displayName,
+            description: group.name,
+            groupId: group.id
+        }));
+
+        const selection = await vscode.window.showQuickPick(quickPickItems, {
+            placeHolder: 'Select target group to move note to'
+        });
+
+        if (!selection?.groupId) {
+            return;
+        }
+
+        try {
+            await this.keyNoteRelationManager.moveKeyNoteToGroup(item.dataId, item.groupId, selection.groupId);
+            vscode.window.showInformationMessage('Note moved successfully');
+        } catch (error) {
+            vscode.window.showErrorMessage(
+                `Failed to move key note to group: ${error instanceof Error ? error.message : 'Unknown error'}`
             );
         }
     }

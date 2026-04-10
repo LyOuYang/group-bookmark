@@ -54,6 +54,19 @@ export class KeyNoteRelationManager {
     }
 
     /**
+     * 移动词条到另一个分组
+     */
+    async moveKeyNoteToGroup(noteId: string, fromGroupId: string, toGroupId: string): Promise<void> {
+        const sourceRelation = this.findRelation(noteId, fromGroupId);
+        if (!sourceRelation) {
+            throw new Error('Source relation not found');
+        }
+
+        await this.addKeyNoteToGroup(noteId, toGroupId);
+        await this.removeKeyNoteFromGroup(noteId, fromGroupId);
+    }
+
+    /**
      * 删除词条及其全部关联
      */
     async deleteKeyNoteEverywhere(noteId: string): Promise<void> {

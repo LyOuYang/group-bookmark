@@ -38,8 +38,11 @@ export function registerKeyNoteTreePreviewSelectionListener(
         const selectedNoteId = selectedItem?.type === 'key-note'
             ? selectedItem.dataId
             : undefined;
+        const selectedGroupId = selectedItem?.type === 'key-note'
+            ? selectedItem.groupId
+            : undefined;
 
-        keyNoteSidebarPreviewProvider.previewKeyNote(selectedNoteId);
+        keyNoteSidebarPreviewProvider.previewKeyNote(selectedNoteId, selectedGroupId);
     });
 
     context.subscriptions.push(disposable);

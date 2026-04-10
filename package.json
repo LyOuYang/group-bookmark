@@ -218,6 +218,12 @@
         "icon": "$(trash)"
       },
       {
+        "command": "groupBookmarks.renameKeyNote",
+        "title": "Rename Note",
+        "category": "Group Bookmarks",
+        "icon": "$(edit)"
+      },
+      {
         "command": "groupBookmarks.moveKeyNoteUp",
         "title": "Move Up",
         "category": "Group Bookmarks",
@@ -249,9 +255,15 @@
       },
       {
         "command": "groupBookmarks.addExistingKeyNoteToGroup",
-        "title": "Add Existing Note to Group",
+        "title": "Add to Another Group",
         "category": "Group Bookmarks",
         "icon": "$(add)"
+      },
+      {
+        "command": "groupBookmarks.moveKeyNoteToGroup",
+        "title": "Move to Group",
+        "category": "Group Bookmarks",
+        "icon": "$(arrow-swap)"
       },
       {
         "command": "groupBookmarks.setActiveKeyNoteGroup",
@@ -380,12 +392,12 @@
         {
           "command": "groupBookmarks.importKeyNotes",
           "when": "view == groupKeyNotesView",
-          "group": "navigation@2"
+          "group": "navigation@1"
         },
         {
           "command": "groupBookmarks.exportKeyNotes",
           "when": "view == groupKeyNotesView",
-          "group": "navigation@1"
+          "group": "navigation@2"
         },
         {
           "command": "groupBookmarks.searchKeyNotes",
@@ -501,14 +513,24 @@
           "group": "1_manage@1"
         },
         {
-          "command": "groupBookmarks.removeKeyNoteFromGroup",
+          "command": "groupBookmarks.moveKeyNoteToGroup",
           "when": "view == groupKeyNotesView && viewItem == key-note",
           "group": "1_manage@2"
         },
         {
-          "command": "groupBookmarks.deleteKeyNote",
+          "command": "groupBookmarks.removeKeyNoteFromGroup",
           "when": "view == groupKeyNotesView && viewItem == key-note",
           "group": "1_manage@3"
+        },
+        {
+          "command": "groupBookmarks.deleteKeyNote",
+          "when": "view == groupKeyNotesView && viewItem == key-note",
+          "group": "1_manage@4"
+        },
+        {
+          "command": "groupBookmarks.renameKeyNote",
+          "when": "view == groupKeyNotesView && viewItem == key-note",
+          "group": "2_edit@1"
         },
         {
           "command": "groupBookmarks.setActiveKeyNoteGroup",

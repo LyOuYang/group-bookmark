@@ -365,6 +365,42 @@ describe('key note data manager', () => {
     expect(storage.saveKeyNotes).toHaveBeenCalledTimes(2);
   });
 
+  it('renames a key note through the key note manager and updates the normalized term', async () => {
+    const storage = createStorageDouble();
+    const dataManager = new DataManager(asStorageService(storage));
+    const manager = new KeyNoteManager(dataManager);
+
+    const note = await manager.createOrGetKeyNote('User_Table');
+    await manager.renameKeyNote(note.id, '  Order_Table  ');
+
+    expect(dataManager.getKeyNote(note.id)?.term).toBe('Order_Table');
+    expect(dataManager.getKeyNote(note.id)?.normalizedTerm).toBe('order_table');
+    expect(manager.getByNormalizedTerm('user_table')).toBeUndefined();
+    expect(manager.getByNormalizedTerm('order_table')?.id).toBe(note.id);
+    expect(storage.saveKeyNotes).toHaveBeenCalledTimes(2);
+  });
+
+  it('rejects renaming a key note to a blank term', async () => {
+    const storage = createStorageDouble();
+    const dataManager = new DataManager(asStorageService(storage));
+    const manager = new KeyNoteManager(dataManager);
+
+    const note = await manager.createOrGetKeyNote('User_Table');
+
+    await expect(manager.renameKeyNote(note.id, ' \t ')).rejects.toThrow('Term cannot be blank');
+  });
+
+  it('rejects renaming a key note to an existing normalized term', async () => {
+    const storage = createStorageDouble();
+    const dataManager = new DataManager(asStorageService(storage));
+    const manager = new KeyNoteManager(dataManager);
+
+    await manager.createOrGetKeyNote('User_Table');
+    const other = await manager.createOrGetKeyNote('Order_Table');
+
+    await expect(manager.renameKeyNote(other.id, ' user_table ')).rejects.toThrow('Key note term already exists');
+  });
+
   it('deletes a key note through the key note manager', async () => {
     const storage = createStorageDouble();
     const dataManager = new DataManager(asStorageService(storage));
@@ -514,6 +550,26 @@ describe('key note data manager', () => {
     expect(relationManager.getRelationsInGroup('group-a')).toHaveLength(0);
     expect(relationManager.getRelationsInGroup('group-b')).toHaveLength(1);
     expect(storage.saveKeyNoteRelations).toHaveBeenCalledTimes(1);
+  });
+
+  it('moves a key note to another group without deleting the note body', async () => {
+    const storage = createStorageDouble({
+      keyNotes: [makeKeyNote('note-1')],
+      keyNoteGroups: [makeKeyNoteGroup('group-a', 0), makeKeyNoteGroup('group-b', 1)],
+      keyNoteRelations: [makeKeyNoteRelation('rel-a', 'note-1', 'group-a', 0)],
+    });
+    const dataManager = new DataManager(asStorageService(storage));
+    const relationManager = new KeyNoteRelationManager(dataManager);
+
+    await dataManager.loadAll();
+    await relationManager.moveKeyNoteToGroup('note-1', 'group-a', 'group-b');
+
+    expect(dataManager.getKeyNote('note-1')).toBeDefined();
+    expect(relationManager.getRelationsInGroup('group-a')).toHaveLength(0);
+    expect(relationManager.getRelationsInGroup('group-b')).toEqual([
+      expect.objectContaining({ keyNoteId: 'note-1', groupId: 'group-b' }),
+    ]);
+    expect(storage.saveKeyNoteRelations).toHaveBeenCalledTimes(2);
   });
 
   it('deletes a key note everywhere', async () => {
