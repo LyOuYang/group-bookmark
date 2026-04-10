@@ -2,7 +2,7 @@
   "name": "group-bookmarks",
   "displayName": "Group Bookmarks",
   "description": "Source Code Bookmark Group Management | 源码书签分组管理",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "publisher": "groupbookmarks",
   "repository": {
     "type": "git",
