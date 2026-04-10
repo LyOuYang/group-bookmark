@@ -1340,7 +1340,40 @@ describe('package contributions for key notes', () => {
 
     expect(createEntry).toEqual(expect.objectContaining({
       when: 'view == groupKeyNotesView',
-      group: 'navigation',
+      group: 'navigation@3',
+    }));
+  });
+
+  it('keeps key-note title-bar actions adjacent and uses the corrected import/export icons', () => {
+    const packageJsonPath = path.resolve(__dirname, '..', '..', 'package.json');
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+    const commands = packageJson.contributes.commands as Array<{ command: string; icon?: string }>;
+    const titleMenus = packageJson.contributes.menus['view/title'] as Array<{ command: string; when?: string; group?: string }>;
+
+    const importCommand = commands.find(item => item.command === 'groupBookmarks.importKeyNotes');
+    const exportCommand = commands.find(item => item.command === 'groupBookmarks.exportKeyNotes');
+    const importEntry = titleMenus.find(item => item.command === 'groupBookmarks.importKeyNotes');
+    const exportEntry = titleMenus.find(item => item.command === 'groupBookmarks.exportKeyNotes');
+    const createEntry = titleMenus.find(item => item.command === 'groupBookmarks.createKeyNoteGroup');
+    const searchEntry = titleMenus.find(item => item.command === 'groupBookmarks.searchKeyNotes');
+
+    expect(importCommand?.icon).toBe('$(cloud-download)');
+    expect(exportCommand?.icon).toBe('$(cloud-upload)');
+    expect(importEntry).toEqual(expect.objectContaining({
+      when: 'view == groupKeyNotesView',
+      group: 'navigation@1',
+    }));
+    expect(exportEntry).toEqual(expect.objectContaining({
+      when: 'view == groupKeyNotesView',
+      group: 'navigation@2',
+    }));
+    expect(createEntry).toEqual(expect.objectContaining({
+      when: 'view == groupKeyNotesView',
+      group: 'navigation@3',
+    }));
+    expect(searchEntry).toEqual(expect.objectContaining({
+      when: 'view == groupKeyNotesView',
+      group: 'navigation@4',
     }));
   });
 });

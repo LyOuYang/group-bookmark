@@ -70,37 +70,37 @@
         "command": "groupBookmarks.importAll",
         "title": "Import Data",
         "category": "Group Bookmarks",
-        "icon": "$(cloud-upload)"
+        "icon": "$(cloud-download)"
       },
       {
         "command": "groupBookmarks.exportAll",
         "title": "Export All Data",
         "category": "Group Bookmarks",
-        "icon": "$(cloud-download)"
+        "icon": "$(cloud-upload)"
       },
       {
         "command": "groupBookmarks.importBookmarks",
         "title": "Import Bookmarks",
         "category": "Group Bookmarks",
-        "icon": "$(cloud-upload)"
+        "icon": "$(cloud-download)"
       },
       {
         "command": "groupBookmarks.exportBookmarks",
         "title": "Export Bookmarks",
         "category": "Group Bookmarks",
-        "icon": "$(cloud-download)"
+        "icon": "$(cloud-upload)"
       },
       {
         "command": "groupBookmarks.importKeyNotes",
         "title": "Import Key Notes",
         "category": "Group Bookmarks",
-        "icon": "$(cloud-upload)"
+        "icon": "$(cloud-download)"
       },
       {
         "command": "groupBookmarks.exportKeyNotes",
         "title": "Export Key Notes",
         "category": "Group Bookmarks",
-        "icon": "$(cloud-download)"
+        "icon": "$(cloud-upload)"
       },
       {
         "command": "groupBookmarks.focusBookmarkView",
@@ -380,7 +380,7 @@
         {
           "command": "groupBookmarks.importKeyNotes",
           "when": "view == groupKeyNotesView",
-          "group": "navigation"
+          "group": "navigation@2"
         },
         {
           "command": "groupBookmarks.exportKeyNotes",
@@ -390,7 +390,7 @@
         {
           "command": "groupBookmarks.searchKeyNotes",
           "when": "view == groupKeyNotesView",
-          "group": "navigation@2"
+          "group": "navigation@4"
         },
         {
           "command": "groupBookmarks.createGroup",
@@ -400,7 +400,7 @@
         {
           "command": "groupBookmarks.createKeyNoteGroup",
           "when": "view == groupKeyNotesView",
-          "group": "navigation"
+          "group": "navigation@3"
         }
       ],
       "view/item/context": [

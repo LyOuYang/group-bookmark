@@ -4,6 +4,8 @@ import { StorageService } from '../data/storageService';
 import { DataManager } from '../data/dataManager';
 import { ExportData, ExportScope } from '../models/types';
 
+type ImportMode = 'merge' | 'replace';
+
 /**
  * 导入导出服务
  */
@@ -71,13 +73,13 @@ export class ImportExportService {
             if (typeof data !== 'object' || !data.version) {
                 throw new Error('Invalid export data format');
             }
+            if (!this.hasDataForScope(data, scope)) {
+                throw new Error(`Selected file does not contain ${this.getScopeLabel(scope)} data`);
+            }
 
             // 询问是否合并还是替换
             const action = await vscode.window.showQuickPick(
-                [
-                    { label: 'Merge', description: 'Add imported data to existing bookmarks', value: 'merge' },
-                    { label: 'Replace', description: 'Replace all existing bookmarks', value: 'replace' }
-                ],
+                this.getImportModeOptions(scope),
                 { placeHolder: 'How would you like to import?' }
             );
 
@@ -86,21 +88,11 @@ export class ImportExportService {
             }
 
             if (action.value === 'replace') {
-                // 替换模式下，如果 scope 指定只覆盖部分，我们需要构建一个混合 Data
-                const dataToImport = { ...data };
-                if (scope === 'bookmarks') {
-                    delete dataToImport.keyNotes;
-                    delete dataToImport.keyNoteGroups;
-                    delete dataToImport.keyNoteRelations;
-                } else if (scope === 'keyNotes') {
-                    delete dataToImport.bookmarks;
-                    delete dataToImport.groups;
-                    delete dataToImport.relations;
-                }
+                const dataToImport = this.buildReplaceImportData(data, scope);
                 await this.storageService.importData(dataToImport);
             } else {
                 // 合并模式：需要处理 ID 冲突，并同样遵从 scope 指令
-                await this.mergeData(data, scope);
+                await this.mergeData(this.cloneExportData(data), scope);
             }
 
             // 重新加载数据
@@ -234,5 +226,74 @@ export class ImportExportService {
         if (mergedData.keyNoteRelations) {
             await this.storageService.saveKeyNoteRelations(mergedData.keyNoteRelations);
         }
+    }
+
+    private getImportModeOptions(scope: ExportScope): Array<{ label: string; description: string; value: ImportMode }> {
+        const scopeLabel = this.getScopeLabel(scope);
+
+        return [
+            { label: 'Merge', description: `Add imported ${scopeLabel} to the current workspace`, value: 'merge' },
+            { label: 'Replace', description: `Replace the current ${scopeLabel}`, value: 'replace' }
+        ];
+    }
+
+    private getScopeLabel(scope: ExportScope): string {
+        if (scope === 'bookmarks') {
+            return 'bookmarks';
+        }
+
+        if (scope === 'keyNotes') {
+            return 'key note data';
+        }
+
+        return 'bookmarks and key notes';
+    }
+
+    private hasDataForScope(data: ExportData, scope: ExportScope): boolean {
+        if (scope === 'bookmarks') {
+            return data.bookmarks !== undefined || data.groups !== undefined || data.relations !== undefined;
+        }
+
+        if (scope === 'keyNotes') {
+            return data.keyNotes !== undefined || data.keyNoteGroups !== undefined || data.keyNoteRelations !== undefined;
+        }
+
+        return this.hasDataForScope(data, 'bookmarks') || this.hasDataForScope(data, 'keyNotes');
+    }
+
+    private buildReplaceImportData(data: ExportData, scope: ExportScope): ExportData {
+        const cloned = this.cloneExportData(data);
+        const scopedData: ExportData = {
+            version: cloned.version,
+            platform: cloned.platform,
+            workspace: cloned.workspace,
+            exportedAt: cloned.exportedAt
+        };
+
+        if (scope === 'all' || scope === 'bookmarks') {
+            scopedData.bookmarks = cloned.bookmarks || [];
+            scopedData.groups = cloned.groups || [];
+            scopedData.relations = cloned.relations || [];
+        }
+
+        if (scope === 'all' || scope === 'keyNotes') {
+            scopedData.keyNotes = cloned.keyNotes || [];
+            scopedData.keyNoteGroups = cloned.keyNoteGroups || [];
+            scopedData.keyNoteRelations = cloned.keyNoteRelations || [];
+        }
+
+        return scopedData;
+    }
+
+    private cloneExportData(data: ExportData): ExportData {
+        return {
+            ...data,
+            bookmarks: data.bookmarks?.map(bookmark => ({ ...bookmark })),
+            groups: data.groups?.map(group => ({ ...group })),
+            relations: data.relations?.map(relation => ({ ...relation })),
+            keyNotes: data.keyNotes?.map(note => ({ ...note })),
+            keyNoteGroups: data.keyNoteGroups?.map(group => ({ ...group })),
+            keyNoteRelations: data.keyNoteRelations?.map(relation => ({ ...relation }))
+        };
     }
 }

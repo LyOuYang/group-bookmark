@@ -84,6 +84,13 @@ export class DataManager {
 
         this.keyNoteRelations.clear();
         keyNoteRelations.forEach(relation => this.keyNoteRelations.set(relation.id, relation));
+
+        this._onDidChangeBookmarks.fire();
+        this._onDidChangeGroups.fire();
+        this._onDidChangeRelations.fire();
+        this._onDidChangeKeyNotes.fire();
+        this._onDidChangeKeyNoteGroups.fire();
+        this._onDidChangeKeyNoteRelations.fire();
     }
 
     // ===== Bookmark 操作 =====

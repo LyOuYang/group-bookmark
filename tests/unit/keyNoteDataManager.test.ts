@@ -221,6 +221,24 @@ describe('StorageService', () => {
 });
 
 describe('key note data manager', () => {
+  it('fires change events after loadAll so import consumers refresh immediately', async () => {
+    const storage = createStorageDouble({
+      keyNotes: [makeKeyNote('note-1')],
+      keyNoteGroups: [makeKeyNoteGroup('group-1', 0)],
+      keyNoteRelations: [makeKeyNoteRelation('rel-1', 'note-1', 'group-1', 0)],
+    });
+    const manager = new DataManager(asStorageService(storage));
+
+    await manager.loadAll();
+
+    expect((manager as any)._onDidChangeBookmarks.fire).toHaveBeenCalledTimes(1);
+    expect((manager as any)._onDidChangeGroups.fire).toHaveBeenCalledTimes(1);
+    expect((manager as any)._onDidChangeRelations.fire).toHaveBeenCalledTimes(1);
+    expect((manager as any)._onDidChangeKeyNotes.fire).toHaveBeenCalledTimes(1);
+    expect((manager as any)._onDidChangeKeyNoteGroups.fire).toHaveBeenCalledTimes(1);
+    expect((manager as any)._onDidChangeKeyNoteRelations.fire).toHaveBeenCalledTimes(1);
+  });
+
   it('loads and saves key notes, groups, and relations', async () => {
     const storage = createStorageDouble();
     const manager = new DataManager(asStorageService(storage));
