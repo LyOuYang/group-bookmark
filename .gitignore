@@ -5,3 +5,4 @@ dist
 *.vsix
 .vscode
 .worktrees
+.idea
