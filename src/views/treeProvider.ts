@@ -100,11 +100,15 @@ export class BookmarkTreeProvider implements vscode.TreeDataProvider<BookmarkTre
                                 if (relation.linkedGroupIds && relation.linkedGroupIds.length > 0) {
                                     const linkedGroups = relation.linkedGroupIds
                                         .map(id => this.groupManager.getGroupById(id))
-                                        .filter(g => g !== undefined)
-                                        .map(g => g!.name);
+                                        .filter(g => g !== undefined);
 
                                     if (linkedGroups.length > 0) {
-                                        md.appendMarkdown(`\n\n🔗 参考组：${linkedGroups.join(', ')}`);
+                                        md.appendMarkdown(`\n\n---\n**🔗 点击跳转到参考组：**\n`);
+                                        linkedGroups.forEach(g => {
+                                            const args = encodeURIComponent(JSON.stringify([g!.id]));
+                                            md.appendMarkdown(`\n- [▶ ${g!.number}. ${g!.name}](command:groupBookmarks.revealGroupById?${args})`);
+                                        });
+                                        md.isTrusted = true;
                                     }
                                 }
 
@@ -231,9 +235,21 @@ export class BookmarkTreeProvider implements vscode.TreeDataProvider<BookmarkTre
                 vscode.TreeItemCollapsibleState.None
             );
 
-            item.description = `(${fileName}:${bookmark.line})`;
-            // Remove static tooltip to enable resolveTreeItem (lazy loading)
-            // item.tooltip = `${relation.title}\n${bookmark.fileUri}:${bookmark.line}`;
+            if (relation.linkedGroupIds && relation.linkedGroupIds.length > 0) {
+                const linkedGroups = relation.linkedGroupIds
+                    .map(id => this.groupManager.getGroupById(id))
+                    .filter(g => g !== undefined);
+                
+                if (linkedGroups.length > 0) {
+                    item.contextValue = 'bookmark_linked';
+                    const linkedNumbers = linkedGroups.map(g => g!.number).join(', ');
+                    item.description = `(${fileName}:${bookmark.line})  🔗 ${linkedNumbers}`;
+                } else {
+                    item.description = `(${fileName}:${bookmark.line})`;
+                }
+            } else {
+                item.description = `(${fileName}:${bookmark.line})`;
+            }
 
             // 设置点击命令
             item.command = {

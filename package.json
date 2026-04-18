@@ -308,15 +308,15 @@
         "mac": "cmd+k v"
       },
       {
-        "command": "groupBookmarks.moveUp",
-        "key": "alt+up",
-        "when": "view == groupBookmarksView && viewItem == bookmark && listFocus"
-      },
-      {
-        "command": "groupBookmarks.moveDown",
-        "key": "alt+down",
-        "when": "view == groupBookmarksView && viewItem == bookmark && listFocus"
-      },
+          "command": "groupBookmarks.moveUp",
+          "key": "alt+up",
+          "when": "view == groupBookmarksView && viewItem =~ /^bookmark/ && listFocus"
+        },
+        {
+          "command": "groupBookmarks.moveDown",
+          "key": "alt+down",
+          "when": "view == groupBookmarksView && viewItem =~ /^bookmark/ && listFocus"
+        },
       {
         "command": "groupBookmarks.moveKeyNoteUp",
         "key": "alt+up",
@@ -452,52 +452,52 @@
         },
         {
           "command": "groupBookmarks.moveUp",
-          "when": "view == groupBookmarksView && viewItem == bookmark",
+          "when": "view == groupBookmarksView && viewItem =~ /^bookmark/",
           "group": "1_move@1"
         },
         {
           "command": "groupBookmarks.moveDown",
-          "when": "view == groupBookmarksView && viewItem == bookmark",
+          "when": "view == groupBookmarksView && viewItem =~ /^bookmark/",
           "group": "1_move@2"
         },
         {
           "command": "groupBookmarks.moveToTop",
-          "when": "view == groupBookmarksView && viewItem == bookmark",
+          "when": "view == groupBookmarksView && viewItem =~ /^bookmark/",
           "group": "1_move@3"
         },
         {
           "command": "groupBookmarks.moveToBottom",
-          "when": "view == groupBookmarksView && viewItem == bookmark",
+          "when": "view == groupBookmarksView && viewItem =~ /^bookmark/",
           "group": "1_move@4"
         },
         {
           "command": "groupBookmarks.moveBookmarkToGroup",
-          "when": "view == groupBookmarksView && viewItem == bookmark",
+          "when": "view == groupBookmarksView && viewItem =~ /^bookmark/",
           "group": "1_move@5"
         },
         {
           "command": "groupBookmarks.renameBookmark",
-          "when": "view == groupBookmarksView && viewItem == bookmark",
+          "when": "view == groupBookmarksView && viewItem =~ /^bookmark/",
           "group": "2_edit@1"
         },
         {
           "command": "groupBookmarks.linkToGroup",
-          "when": "view == groupBookmarksView && viewItem == bookmark",
+          "when": "view == groupBookmarksView && viewItem =~ /^bookmark/",
           "group": "2_edit@2"
         },
         {
           "command": "groupBookmarks.revealRelatedGroups",
-          "when": "view == groupBookmarksView && viewItem == bookmark",
-          "group": "2_edit@3"
+          "when": "view == groupBookmarksView && viewItem == bookmark_linked",
+          "group": "inline@1"
         },
         {
           "command": "groupBookmarks.deleteBookmark",
-          "when": "view == groupBookmarksView && viewItem == bookmark",
-          "group": "inline"
+          "when": "view == groupBookmarksView && viewItem =~ /^bookmark/",
+          "group": "inline@2"
         },
         {
           "command": "groupBookmarks.deleteBookmark",
-          "when": "view == groupBookmarksView && viewItem == bookmark"
+          "when": "view == groupBookmarksView && viewItem =~ /^bookmark/"
         },
         {
           "command": "groupBookmarks.moveKeyNoteUp",

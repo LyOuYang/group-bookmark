@@ -147,6 +147,18 @@ export class CommandHandler {
                 this.revealRelatedGroups(item)
             )
         );
+
+        // 隐藏命令：根据 ID 直接定位组（用于 Markdown 链接）
+        context.subscriptions.push(
+            vscode.commands.registerCommand('groupBookmarks.revealGroupById', async (groupId: string) => {
+                if (!this.treeView) { return; }
+                const targetItems = this.treeProvider.getChildren();
+                const targetItem = targetItems.find(item => item.id === `group_${groupId}`);
+                if (targetItem) {
+                    await this.treeView.reveal(targetItem, { select: true, focus: true, expand: true });
+                }
+            })
+        );
     }
 
     /**
