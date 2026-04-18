@@ -80,6 +80,18 @@ export class GroupManager {
      */
     async reorderGroups(groupIds: string[]): Promise<void> {
         await this.dataManager.reorderGroups(groupIds);
+
+        const groups = this.dataManager.getAllGroups();
+        for (let i = 0; i < groups.length; i++) {
+            const group = groups[i];
+            const newNumber = i + 1;
+            if (group.number !== newNumber) {
+                await this.dataManager.updateGroup(group.id, {
+                    number: newNumber,
+                    displayName: `${newNumber}. ${group.name}`
+                });
+            }
+        }
     }
 
     /**

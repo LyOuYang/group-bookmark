@@ -161,6 +161,18 @@
         "icon": "$(trash)"
       },
       {
+        "command": "groupBookmarks.revealRelatedGroups",
+        "title": "➡️ Go to Linked Group",
+        "category": "Group Bookmarks",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "groupBookmarks.linkToGroup",
+        "title": "🔗 Link to Group...",
+        "category": "Group Bookmarks",
+        "icon": "$(link)"
+      },
+      {
         "command": "groupBookmarks.addKeyNoteFromSelection",
         "title": "🔖 Add Key Note",
         "category": "Group Bookmarks",
@@ -467,6 +479,16 @@
           "command": "groupBookmarks.renameBookmark",
           "when": "view == groupBookmarksView && viewItem == bookmark",
           "group": "2_edit@1"
+        },
+        {
+          "command": "groupBookmarks.linkToGroup",
+          "when": "view == groupBookmarksView && viewItem == bookmark",
+          "group": "2_edit@2"
+        },
+        {
+          "command": "groupBookmarks.revealRelatedGroups",
+          "when": "view == groupBookmarksView && viewItem == bookmark",
+          "group": "2_edit@3"
         },
         {
           "command": "groupBookmarks.deleteBookmark",

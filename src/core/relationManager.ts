@@ -149,6 +149,31 @@ export class RelationManager {
     }
 
     /**
+     * 关联参考组到书签记录
+     */
+    async linkGroupToRelation(relationId: string, targetGroupId: string): Promise<void> {
+        const relation = this.dataManager.getRelation(relationId);
+        if (!relation) { throw new Error('Relation not found'); }
+
+        const linkedGroups = relation.linkedGroupIds || [];
+        if (!linkedGroups.includes(targetGroupId)) {
+            linkedGroups.push(targetGroupId);
+            await this.dataManager.updateRelation(relationId, { linkedGroupIds: linkedGroups });
+        }
+    }
+
+    /**
+     * 从书签记录移除参考组关联
+     */
+    async unlinkGroupFromRelation(relationId: string, targetGroupId: string): Promise<void> {
+        const relation = this.dataManager.getRelation(relationId);
+        if (!relation || !relation.linkedGroupIds) { return; }
+
+        const linkedGroups = relation.linkedGroupIds.filter(id => id !== targetGroupId);
+        await this.dataManager.updateRelation(relationId, { linkedGroupIds: linkedGroups });
+    }
+
+    /**
      * 私有方法：查找关联关系
      */
     private findRelation(bookmarkId: string, groupId: string): BookmarkGroup | undefined {

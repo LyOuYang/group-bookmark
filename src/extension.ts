@@ -150,7 +150,8 @@ export async function activate(context: vscode.ExtensionContext) {
             bookmarkManager,
             groupManager,
             relationManager,
-            treeProvider
+            treeProvider,
+            treeView
         );
 
         commandHandler.registerCommands(context);

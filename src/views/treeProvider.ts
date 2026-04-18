@@ -24,6 +24,8 @@ export class BookmarkTreeItem extends vscode.TreeItem {
     ) {
         super(label, collapsibleState);
 
+        this.id = type === 'group' ? `group_${dataId}` : `bookmark_${dataId}`;
+
         if (type === 'group') {
             this.contextValue = 'group';
         } else {
@@ -95,6 +97,17 @@ export class BookmarkTreeProvider implements vscode.TreeDataProvider<BookmarkTre
                                 md.appendCodeblock(code, ext);
                                 md.appendMarkdown(`\n\n__${PathUtils.getFileName(absUri)}:${startLine}-${Math.min(endLine, startLine + lines.length - 1)}__`);
 
+                                if (relation.linkedGroupIds && relation.linkedGroupIds.length > 0) {
+                                    const linkedGroups = relation.linkedGroupIds
+                                        .map(id => this.groupManager.getGroupById(id))
+                                        .filter(g => g !== undefined)
+                                        .map(g => g!.name);
+
+                                    if (linkedGroups.length > 0) {
+                                        md.appendMarkdown(`\n\n🔗 参考组：${linkedGroups.join(', ')}`);
+                                    }
+                                }
+
                                 item.tooltip = md;
                             }
                         }
@@ -110,6 +123,25 @@ export class BookmarkTreeProvider implements vscode.TreeDataProvider<BookmarkTre
 
     getTreeItem(element: BookmarkTreeItem): vscode.TreeItem {
         return element;
+    }
+
+    getParent(element: BookmarkTreeItem): BookmarkTreeItem | undefined {
+        if (element.type === 'bookmark') {
+            const parts = element.dataId.split('_');
+            if (parts.length === 2) {
+                const groupId = parts[1];
+                const group = this.groupManager.getGroupById(groupId);
+                if (group) {
+                    let label = `${group.number}. ${group.name}`;
+                    if (group.showGhostText !== false) {
+                        label = `✔ ${label}`;
+                    }
+                    const colorIcon = this.getColorIcon(group.color);
+                    return new BookmarkTreeItem('group', group.id, `${colorIcon} ${label}`, vscode.TreeItemCollapsibleState.Collapsed);
+                }
+            }
+        }
+        return undefined;
     }
 
     getChildren(element?: BookmarkTreeItem): BookmarkTreeItem[] {
@@ -239,8 +271,8 @@ export class BookmarkTreeProvider implements vscode.TreeDataProvider<BookmarkTre
         if (source.length === 0) {return;}
 
         const item = source[0];
-        // 仅支持拖拽书签
-        if (item.type !== 'bookmark') {return;}
+        // 支持拖拽书签和分组
+        if (item.type !== 'bookmark' && item.type !== 'group') {return;}
 
         dataTransfer.set('application/vnd.code.tree.groupBookmarks', new vscode.DataTransferItem(item));
     }
@@ -250,9 +282,38 @@ export class BookmarkTreeProvider implements vscode.TreeDataProvider<BookmarkTre
         if (!transferItem) {return;}
 
         const sourceItem = transferItem.value as BookmarkTreeItem;
-        if (!sourceItem || sourceItem.type !== 'bookmark') {return;}
+        if (!sourceItem) {return;}
 
-        // 解析 Source Info
+        // 处理分组级别的拖拽排序
+        if (sourceItem.type === 'group') {
+            if (target && target.type === 'group') {
+                const sourceGroupId = sourceItem.dataId;
+                const targetGroupId = target.dataId;
+
+                if (sourceGroupId !== targetGroupId) {
+                    const groups = this.groupManager.getAllGroups();
+                    const ids = groups.map(g => g.id);
+
+                    const oldIndex = ids.indexOf(sourceGroupId);
+                    if (oldIndex > -1) {
+                        ids.splice(oldIndex, 1);
+                    }
+
+                    const newIndex = ids.indexOf(targetGroupId);
+                    if (newIndex > -1) {
+                        // 插入到 target 之前
+                        ids.splice(newIndex, 0, sourceGroupId);
+                    } else {
+                        ids.push(sourceGroupId);
+                    }
+
+                    await this.groupManager.reorderGroups(ids);
+                }
+            }
+            return; // 分组拖拽处理完毕
+        }
+
+        // 解析 Source Info (仅针对 bookmark)
         // relation.id = bookmarkId_groupId
         const [sourceBookmarkId, sourceGroupId] = sourceItem.dataId.split('_');
 

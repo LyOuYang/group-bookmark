@@ -3,7 +3,7 @@ import { Bookmark, Group, GroupColor } from '../models/types';
 import { BookmarkManager } from '../core/bookmarkManager';
 import { GroupManager } from '../core/groupManager';
 import { RelationManager } from '../core/relationManager';
-import { BookmarkTreeProvider } from '../views/treeProvider';
+import { BookmarkTreeProvider, BookmarkTreeItem } from '../views/treeProvider';
 import { PathUtils } from '../utils/pathUtils';
 import { Logger } from '../utils/logger';
 
@@ -21,7 +21,8 @@ export class CommandHandler {
         private bookmarkManager: BookmarkManager,
         private groupManager: GroupManager,
         private relationManager: RelationManager,
-        private treeProvider: BookmarkTreeProvider
+        private treeProvider: BookmarkTreeProvider,
+        private treeView?: vscode.TreeView<any>
     ) { }
 
     /**
@@ -130,6 +131,20 @@ export class CommandHandler {
         context.subscriptions.push(
             vscode.commands.registerCommand('groupBookmarks.moveBookmarkToGroup', (item: ViewTreeItem) =>
                 this.moveBookmarkToGroup(item)
+            )
+        );
+
+        // 关联到其他分组
+        context.subscriptions.push(
+            vscode.commands.registerCommand('groupBookmarks.linkToGroup', (item: ViewTreeItem) =>
+                this.linkToGroup(item)
+            )
+        );
+
+        // 快速定位关联组
+        context.subscriptions.push(
+            vscode.commands.registerCommand('groupBookmarks.revealRelatedGroups', (item: ViewTreeItem) =>
+                this.revealRelatedGroups(item)
             )
         );
     }
@@ -835,6 +850,117 @@ export class CommandHandler {
             vscode.window.showErrorMessage(
                 `Failed to move bookmark to group: ${error instanceof Error ? error.message : 'Unknown error'}`
             );
+        }
+    }
+
+    /**
+     * 关联书签到另一个分组（作为参考链接）
+     */
+    private async linkToGroup(item: ViewTreeItem): Promise<void> {
+        if (!item?.dataId) { return; }
+        
+        const relation = this.relationManager.getRelationsInGroup(item.dataId.split('_')[1])?.find(r => r.id === item.dataId);
+        if (!relation) { return; }
+
+        const allGroups = this.groupManager.getAllGroups();
+        const currentGroupId = relation.groupId;
+        const linkedGroupIds = relation.linkedGroupIds || [];
+
+        const availableGroups = allGroups.filter(g => g.id !== currentGroupId);
+        if (availableGroups.length === 0) {
+            vscode.window.showWarningMessage('No other groups available to link.');
+            return;
+        }
+
+        const groupItems = availableGroups.map(g => ({
+            label: `${linkedGroupIds.includes(g.id) ? '$(check) ' : ''}$(folder) ${g.name}`,
+            description: linkedGroupIds.includes(g.id) ? 'Already linked' : '',
+            groupId: g.id
+        }));
+
+        const selectedGroup = await vscode.window.showQuickPick(groupItems, {
+            placeHolder: 'Select a group to link as reference'
+        });
+
+        if (!selectedGroup) { return; }
+
+        try {
+            if (linkedGroupIds.includes(selectedGroup.groupId)) {
+                // 已存在则解除关联（Toggle）
+                await this.relationManager.unlinkGroupFromRelation(relation.id, selectedGroup.groupId);
+                vscode.window.showInformationMessage(`Unlinked from group successfully.`);
+            } else {
+                // 不存在则关联
+                await this.relationManager.linkGroupToRelation(relation.id, selectedGroup.groupId);
+                vscode.window.showInformationMessage(`Linked to group successfully.`);
+            }
+        } catch (error) {
+            Logger.error('Failed to link group', error);
+            vscode.window.showErrorMessage('Failed to update group links.');
+        }
+    }
+
+    /**
+     * 快速定位关联的参考组
+     */
+    private async revealRelatedGroups(item: ViewTreeItem): Promise<void> {
+        if (!item?.dataId || !this.treeView) {
+            return;
+        }
+
+        const parts = item.dataId.split('_');
+        if (parts.length !== 2) { return; }
+        const currentGroupId = parts[1];
+
+        const relation = this.relationManager.getRelationsInGroup(currentGroupId)?.find(r => r.id === item.dataId);
+        if (!relation || !relation.linkedGroupIds || relation.linkedGroupIds.length === 0) {
+            vscode.window.showInformationMessage('This bookmark has no linked reference groups.');
+            return;
+        }
+
+        const linkedGroups = relation.linkedGroupIds
+            .map(id => this.groupManager.getGroupById(id))
+            .filter(g => g !== undefined);
+
+        if (linkedGroups.length === 0) {
+            vscode.window.showInformationMessage('Linked reference groups no longer exist.');
+            return;
+        }
+
+        let targetGroup = linkedGroups[0];
+
+        if (linkedGroups.length > 1) {
+            const picks = linkedGroups.map(g => ({
+                label: `$(folder) ${g!.displayName}`,
+                group: g!
+            }));
+
+            const selected = await vscode.window.showQuickPick(picks, {
+                placeHolder: 'Select linked group to reveal'
+            });
+
+            if (!selected) { return; }
+            targetGroup = selected.group;
+        }
+
+        // 构造要跳转的组节点并定位 (不需要定位到里面的具体书签，只展开组)
+        const targetItems = this.treeProvider.getChildren();
+        const targetItem = targetItems.find(item => item.id === `group_${targetGroup!.id}`);
+
+        if (!targetItem) {
+            vscode.window.showErrorMessage('Failed to find group in tree view');
+            return;
+        }
+
+        try {
+            await this.treeView.reveal(targetItem, {
+                select: true,
+                focus: true,
+                expand: true
+            });
+        } catch (error) {
+            Logger.error('Failed to reveal linked group item', error);
+            vscode.window.showErrorMessage('Failed to reveal group in tree view');
         }
     }
 }

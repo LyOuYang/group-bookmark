@@ -1,0 +1,149 @@
+
+        try {
+            const relations = this.relationManager.getRelationsInGroup(groupId);
+            const index = relations.findIndex(r => r.id === item.dataId);
+
+            if (index === -1) {return;}
+
+            const newRelations = [...relations];
+
+            if (direction === 'up') {
+                if (index > 0) {
+                    [newRelations[index - 1], newRelations[index]] = [newRelations[index], newRelations[index - 1]];
+                }
+            } else if (direction === 'down') {
+                if (index < newRelations.length - 1) {
+                    [newRelations[index], newRelations[index + 1]] = [newRelations[index + 1], newRelations[index]];
+                }
+            } else if (direction === 'top') {
+                // 移到顶部：将当前项移到数组开头
+                if (index > 0) {
+                    const [rel] = newRelations.splice(index, 1);
+                    newRelations.unshift(rel);
+                }
+            } else if (direction === 'bottom') {
+                // 移到底部：将当前项移到数组末尾
+                if (index < newRelations.length - 1) {
+                    const [rel] = newRelations.splice(index, 1);
+                    newRelations.push(rel);
+                }
+            }
+
+            // 获取新的 ID 顺序
+            const orderedIds = newRelations.map(r => r.id);
+            await this.relationManager.reorderRelations(groupId, orderedIds);
+
+            // 保持焦点? TreeView 可能会刷新导致失去焦点，但 VS Code 通常会尝试保持
+        } catch (error) {
+            Logger.error('Failed to move bookmark', error);
+        }
+    }
+
+    /**
+     * 移动书签到另一个分组
+     */
+    private async moveBookmarkToGroup(item: ViewTreeItem): Promise<void> {
+        if (!item?.dataId) {
+            vscode.window.showErrorMessage('Invalid bookmark item');
+            return;
+        }
+
+        const parts = item.dataId.split('_');
+        if (parts.length !== 2) {
+            vscode.window.showErrorMessage('Invalid bookmark ID format');
+            return;
+        }
+        const [bookmarkId, currentGroupId] = parts;
+
+        const allGroups = this.groupManager.getAllGroups();
+        const availableGroups = allGroups.filter(g => g.id !== currentGroupId);
+
+        if (availableGroups.length === 0) {
+            vscode.window.showWarningMessage('No other groups available');
+            return;
+        }
+
+        const groupItems = availableGroups.map(g => ({
+            label: `$(bookmark) ${g.name}`,
+            groupId: g.id
+        }));
+
+        const selectedGroup = await vscode.window.showQuickPick(groupItems, {
+            placeHolder: 'Select target group to move bookmark to'
+        });
+
+        if (!selectedGroup) {
+            return;
+        }
+
+        try {
+            await this.relationManager.moveBookmarkToGroup(bookmarkId, currentGroupId, selectedGroup.groupId);
+            vscode.window.showInformationMessage(`Bookmark moved successfully`);
+        } catch (error) {
+            Logger.error('Failed to move bookmark to group', error);
+            vscode.window.showErrorMessage(
+                `Failed to move bookmark to group: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
+        }
+    }
+
+    /**
+     * 快速定位关联组
+     */
+    private async revealRelatedGroups(item: ViewTreeItem): Promise<void> {
+        if (!item?.dataId || !this.treeView) {
+            return;
+        }
+
+        const parts = item.dataId.split('_');
+        if (parts.length !== 2) { return; }
+        const [bookmarkId, currentGroupId] = parts;
+
+        const relatedGroups = this.relationManager.getGroupsForBookmark(bookmarkId)
+            .filter(g => g.id !== currentGroupId);
+
+        if (relatedGroups.length === 0) {
+            vscode.window.showInformationMessage('This bookmark has no other related groups');
+            return;
+        }
+
+        let targetGroup = relatedGroups[0];
+
+        if (relatedGroups.length > 1) {
+            const picks = relatedGroups.map(g => ({
+                label: `$(folder) ${g.displayName}`,
+                group: g
+            }));
+
+            const selected = await vscode.window.showQuickPick(picks, {
+                placeHolder: 'Select related group to reveal'
+            });
+
+            if (!selected) { return; }
+            targetGroup = selected.group;
+        }
+
+        // 构造要跳转的节点并定位
+        const relations = this.relationManager.getRelationsInGroup(targetGroup.id);
+        const targetRelation = relations.find(r => r.bookmarkId === bookmarkId);
+        if (!targetRelation) { return; }
+
+        const targetItem = new BookmarkTreeItem(
+            'bookmark',
+            targetRelation.id,
+            targetRelation.title,
+            vscode.TreeItemCollapsibleState.None
+        );
+
+        try {
+            await this.treeView.reveal(targetItem, {
+                select: true,
+                focus: true,
+                expand: true
+            });
+        } catch (error) {
+            Logger.error('Failed to reveal related group item', error);
+            vscode.window.showErrorMessage('Failed to reveal item in tree view');
+        }
+    }
+}

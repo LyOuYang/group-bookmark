@@ -36,6 +36,7 @@ export interface BookmarkGroup {
     title: string;                 // 在该分组中的标题
     order: number;                 // 在该分组中的排序权重
     createdAt: number;
+    linkedGroupIds?: string[];     // 关联的参考组 ID 列表
 }
 
 /**
