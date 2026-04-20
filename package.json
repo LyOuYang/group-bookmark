@@ -168,7 +168,7 @@
       },
       {
         "command": "groupBookmarks.linkToGroup",
-        "title": "🔗 Link to Group...",
+        "title": "Link to Group...",
         "category": "Group Bookmarks",
         "icon": "$(link)"
       },
